@@ -1,6 +1,9 @@
 #include <windows.h>
 
 101 ICON "main.ico"
+102 RCDATA  "../res/fonts/Roboto.ttf"
+103 RCDATA  "../res/fonts/Roboto Black.ttf"
+104 RCDATA  "../res/fonts/Roboto Mono.ttf"
 
 VS_VERSION_INFO VERSIONINFO
   PRODUCTVERSION 0, 1, 0, 0
