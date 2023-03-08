@@ -1,8 +1,7 @@
 #pragma once
-#include <windows.h>
+#include <epos/com.hpp>
 #include <d2d1_1.h>
 #include <dcomp.h>
-#include <wrl/client.h>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
@@ -12,9 +11,6 @@ namespace epos {
 
 class overlay {
 public:
-  template <typename T>
-  using ComPtr = Microsoft::WRL::ComPtr<T>;
-
   overlay(HINSTANCE instance, HWND hwnd, long cx, long cy);
 
   overlay(overlay&& other) = delete;

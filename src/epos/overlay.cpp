@@ -2,7 +2,6 @@
 #include <epos/error.hpp>
 #include <d2d1_2.h>
 #include <d3d11.h>
-#include <format>
 #include <cassert>
 
 namespace epos {

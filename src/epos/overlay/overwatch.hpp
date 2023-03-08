@@ -1,27 +1,22 @@
 #pragma once
+#include <epos/chrono.hpp>
+#include <epos/com.hpp>
 #include <epos/overlay.hpp>
+#include <epos/text.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <deus.hpp>
 #include <dinput.h>
 #include <dinputd.h>
-#include <dwrite_3.h>
 #include <dxgi1_2.h>
 #include <array>
 #include <atomic>
-#include <chrono>
-#include <string>
-#include <string_view>
 #include <thread>
 
 namespace epos {
 
 class overwatch : public overlay {
 public:
-  // Chrono types.
-  using clock = std::chrono::high_resolution_clock;
-  using milliseconds = std::chrono::duration<double, std::chrono::milliseconds::period>;
-
   // Display width and height.
   static constexpr auto dw = 2560;
   static constexpr auto dh = 1080;
@@ -70,26 +65,6 @@ public:
     };
   };
 
-  enum class brush : unsigned {
-    red = 0,
-    orange,
-    yellow,
-    green,
-    blue,
-    black,
-    white,
-    gray,
-    none,
-  };
-
-  enum class format : unsigned {
-    label = 0,
-    debug,
-    status,
-    report,
-    none,
-  };
-
   overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy);
 
   overwatch(overwatch&& other) = delete;
@@ -104,27 +79,26 @@ public:
 private:
   boost::asio::awaitable<void> run() noexcept;
 
-  __forceinline ID2D1SolidColorBrush* get(brush brush) noexcept
-  {
-    assert(static_cast<unsigned>(brush) < static_cast<unsigned>(brush::none));
-    return brush_[static_cast<unsigned>(brush)].Get();
-  }
-
-  __forceinline IDWriteTextFormat* get(format format) noexcept
-  {
-    assert(static_cast<unsigned>(format) < static_cast<unsigned>(format::none));
-    return format_[static_cast<unsigned>(format)].Get();
-  }
-
-  __forceinline void draw(
+  static __forceinline void draw(
     auto& dc,
     std::wstring_view text,
     const D2D1_RECT_F& rect,
-    IDWriteTextFormat* format,
-    ID2D1Brush* brush) noexcept
+    ComPtr<IDWriteTextFormat>& format,
+    ComPtr<ID2D1SolidColorBrush>& brush) noexcept
   {
     if (const auto size = static_cast<UINT32>(text.size())) {
-      dc->DrawText(text.data(), size, format, rect, brush, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+      dc->DrawText(text.data(), size, format.Get(), rect, brush.Get(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
+    }
+  }
+
+  static __forceinline void draw(
+    auto& dc,
+    const D2D1_POINT_2F& origin,
+    ComPtr<IDWriteTextLayout>& layout,
+    ComPtr<ID2D1SolidColorBrush>& brush) noexcept
+  {
+    if (layout) {
+      dc->DrawTextLayout(origin, layout.Get(), brush.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
     }
   }
 
@@ -132,40 +106,47 @@ private:
   ComPtr<IDirectInputDevice8> keybd_;
   ComPtr<IDirectInputDevice8> mouse_;
 
-  DIMOUSESTATE2 mouse_state_{};
-  D2D1_POINT_2F cursor_position_{};
-
-  ComPtr<ID2D1Bitmap> oueline_;
-  ComPtr<ID2D1BitmapRenderTarget> oueline_dc_;
-  ComPtr<ID2D1SolidColorBrush> oueline_brush_;
-  ComPtr<ID2D1Effect> oueline_dilate_;
+  ComPtr<ID2D1Bitmap> outline_;
+  ComPtr<ID2D1BitmapRenderTarget> outline_dc_;
+  ComPtr<ID2D1SolidColorBrush> outline_brush_;
+  ComPtr<ID2D1Effect> outline_dilate_;
+  ComPtr<ID2D1Effect> outline_color_;
 
   ComPtr<IDWriteFactory6> factory_;
   ComPtr<IDWriteFontCollection2> fonts_;
 
-  std::array<ComPtr<ID2D1SolidColorBrush>, static_cast<unsigned>(brush::none)> brush_;
-  std::array<ComPtr<IDWriteTextFormat>, static_cast<unsigned>(format::none)> format_;
+  struct brushes {
+    ComPtr<ID2D1SolidColorBrush> red;
+    ComPtr<ID2D1SolidColorBrush> orange;
+    ComPtr<ID2D1SolidColorBrush> yellow;
+    ComPtr<ID2D1SolidColorBrush> green;
+    ComPtr<ID2D1SolidColorBrush> blue;
+    ComPtr<ID2D1SolidColorBrush> black;
+    ComPtr<ID2D1SolidColorBrush> white;
+    ComPtr<ID2D1SolidColorBrush> gray;
+  } brushes_;
+
+  struct formats {
+    ComPtr<IDWriteTextFormat> label;
+    ComPtr<IDWriteTextFormat> debug;
+    ComPtr<IDWriteTextFormat> status;
+    ComPtr<IDWriteTextFormat> report;
+  } formats_;
 
   clock::duration duration_{};
   std::wstring duration_text_;
 
-  struct text {
-    std::wstring string;
-    brush brush{ brush::white };
-  };
-
   struct label {
-    std::wstring text;
-    D2D1_RECT_F rect{};
-    format format{ format::label };
-    brush brush{ brush::white };
+    float x{ 0.0f };
+    float y{ 0.0f };
+    ComPtr<IDWriteTextLayout> layout;
   };
 
   struct scene {
-    clock::duration duration;
     std::vector<label> labels;
-    std::vector<text> status;
-    std::vector<text> report;
+    ComPtr<IDWriteTextLayout> status;
+    ComPtr<IDWriteTextLayout> report;
+    clock::duration duration{};
   };
 
   std::array<scene, 3> scenes_{};
@@ -173,6 +154,10 @@ private:
   scene* scene_draw_{ &scenes_[1] };
   std::atomic<scene*> scene_done_{ &scenes_[2] };
   std::atomic_bool scene_done_updated_{ false };
+
+  text string_;
+  text status_;
+  text report_;
 
   deus::device device_;
 

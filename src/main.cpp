@@ -1,5 +1,4 @@
 #include <epos/window.hpp>
-#include <windows.h>
 #include <exception>
 #include <format>
 #include <cstdlib>

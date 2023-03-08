@@ -73,4 +73,21 @@ std::error_code error(HRESULT result) noexcept
   return { static_cast<int>(result), error_category() };
 }
 
+void check(HRESULT result, const char* what, const std::source_location location)
+{
+  if (FAILED(result)) {
+    auto message = std::format(
+      "{} {}:{} {}",
+      location.file_name(),
+      location.line(),
+      location.column(),
+      location.function_name());
+    if (what) {
+      message.append(": ");
+      message.append(what);
+    }
+    throw std::system_error{ result, epos::error_category(), message };
+  }
+}
+
 }  // namespace epos
