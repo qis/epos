@@ -38,7 +38,7 @@ public:
 protected:
   ComPtr<ID2D1DeviceContext> dc_;
 
-  virtual void draw() noexcept = 0;
+  virtual void render() noexcept = 0;
 
 private:
   void run() noexcept;

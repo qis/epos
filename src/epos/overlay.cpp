@@ -105,8 +105,7 @@ void overlay::run() noexcept
     });
     while (cmd == command::update) {
       dc_->BeginDraw();
-      dc_->Clear();
-      draw();
+      render();
       const auto result = dc_->EndDraw();
       assert(SUCCEEDED(result));
       sc_->Present(1, DXGI_PRESENT_RESTART);

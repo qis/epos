@@ -7,6 +7,9 @@
 int WINAPI WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE, _In_ LPSTR cmd, _In_ int show)
 {
   try {
+    if (FAILED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED))) {
+      throw std::runtime_error("Could not load COM library.");
+    }
     epos::window window(instance);
     window.create();
     MSG msg = {};
