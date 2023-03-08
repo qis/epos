@@ -18,8 +18,9 @@ namespace epos {
 
 class overwatch : public overlay {
 public:
-  // Clock for timings.
+  // Chrono types.
   using clock = std::chrono::high_resolution_clock;
+  using milliseconds = std::chrono::duration<double, std::chrono::milliseconds::period>;
 
   // Display width and height.
   static constexpr auto dw = 2560;
@@ -44,7 +45,7 @@ public:
       static constexpr auto margin = 8;
       static constexpr D2D1_RECT_F status{
         region::status.left + margin,
-        region::status.top + margin + 100,
+        region::status.top + margin,
         region::status.right - margin,
         region::status.bottom - margin,
       };
@@ -56,9 +57,15 @@ public:
       };
       static constexpr D2D1_RECT_F report{
         region::report.left + margin,
-        region::report.top + margin + 100,
+        region::report.top + margin,
         region::report.right - margin,
         region::report.bottom - margin,
+      };
+      static constexpr D2D1_RECT_F duration{
+        region::report.left + margin,
+        region::report.bottom - margin - 58,
+        region::report.right - margin,
+        region::report.bottom,
       };
     };
   };
@@ -139,6 +146,14 @@ private:
   std::array<ComPtr<ID2D1SolidColorBrush>, static_cast<unsigned>(brush::none)> brush_;
   std::array<ComPtr<IDWriteTextFormat>, static_cast<unsigned>(format::none)> format_;
 
+  clock::duration duration_{};
+  std::wstring duration_text_;
+
+  struct text {
+    std::wstring string;
+    brush brush{ brush::white };
+  };
+
   struct label {
     std::wstring text;
     D2D1_RECT_F rect{};
@@ -147,9 +162,10 @@ private:
   };
 
   struct scene {
+    clock::duration duration;
     std::vector<label> labels;
-    std::wstring status;
-    std::wstring report;
+    std::vector<text> status;
+    std::vector<text> report;
   };
 
   std::array<scene, 3> scenes_{};
