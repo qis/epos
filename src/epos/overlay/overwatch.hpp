@@ -37,30 +37,25 @@ public:
 
     // Text regions.
     struct text {
-      static constexpr auto margin = 8;
+      static constexpr auto mx = 10;
+      static constexpr auto my = 5;
       static constexpr D2D1_RECT_F status{
-        region::status.left + margin,
-        region::status.top + margin,
-        region::status.right - margin,
-        region::status.bottom - margin,
-      };
-      static constexpr D2D1_RECT_F screen{
-        region::screen.left + margin,
-        region::screen.top + margin,
-        region::screen.right - margin,
-        region::screen.bottom - margin,
+        region::status.left,
+        region::status.top + my,
+        region::status.right - mx,
+        region::status.bottom - my,
       };
       static constexpr D2D1_RECT_F report{
-        region::report.left + margin,
-        region::report.top + margin,
-        region::report.right - margin,
-        region::report.bottom - margin,
+        region::report.left + mx,
+        region::report.top + my,
+        region::report.right,
+        region::report.bottom - my,
       };
       static constexpr D2D1_RECT_F duration{
-        region::report.left + margin,
-        region::report.bottom - margin - 28,
-        region::report.right - margin,
-        region::report.bottom,
+        region::report.left,
+        region::report.bottom - my - 32,
+        region::report.right - mx,
+        region::report.bottom - my,
       };
     };
   };
@@ -123,6 +118,7 @@ private:
     ComPtr<ID2D1SolidColorBrush> black;
     ComPtr<ID2D1SolidColorBrush> white;
     ComPtr<ID2D1SolidColorBrush> gray;
+    ComPtr<ID2D1SolidColorBrush> info;
     ComPtr<ID2D1LinearGradientBrush> status;
     ComPtr<ID2D1LinearGradientBrush> report;
   } brushes_;
@@ -135,7 +131,7 @@ private:
   } formats_;
 
   clock::duration duration_{};
-  std::wstring duration_text_;
+  std::wstring info_;
 
   struct label {
     float x{ 0.0f };

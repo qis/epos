@@ -97,7 +97,8 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   create_brush(dc_, 0x4FC3F7, 1.0f, &brushes_.blue);    // A300 Light Blue
   create_brush(dc_, 0x000000, 1.0f, &brushes_.black);   // Black
   create_brush(dc_, 0xFFFFFF, 1.0f, &brushes_.white);   // White
-  create_brush(dc_, 0xF0F0F0, 0.6f, &brushes_.gray);    // Gray
+  create_brush(dc_, 0xA0A0A0, 1.0f, &brushes_.gray);    // Gray
+  create_brush(dc_, 0xF0F0F0, 0.6f, &brushes_.info);    // Info
 
   D2D1_GRADIENT_STOP gradient[2];
   gradient[0].color = D2D1::ColorF(D2D1::ColorF::Black, 0.8f);
@@ -186,22 +187,22 @@ void overwatch::render() noexcept
   if (scene_draw_->status) {
     dc_->FillRectangle(region::status, brushes_.status.Get());
     constexpr D2D1_POINT_2F origin{ region::text::status.left, region::text::status.top };
-    draw(dc_, origin, scene_draw_->status, brushes_.white);
+    draw(dc_, origin, scene_draw_->status, brushes_.gray);
   }
 
   // Draw report.
   if (scene_draw_->report) {
     dc_->FillRectangle(region::report, brushes_.report.Get());
     constexpr D2D1_POINT_2F origin{ region::text::report.left, region::text::report.top };
-    draw(dc_, origin, scene_draw_->report, brushes_.white);
+    draw(dc_, origin, scene_draw_->report, brushes_.gray);
   }
 
-  // Draw duration text.
-  duration_text_.clear();
+  // Draw info.
+  info_.clear();
   const auto draw_ms = duration_cast<milliseconds>(duration_).count();
   const auto scan_ms = duration_cast<milliseconds>(scene_draw_->duration).count();
-  std::format_to(std::back_inserter(duration_text_), L"{:.03f} ms scan\n{:.03f} ms draw", scan_ms, draw_ms);
-  draw(dc_, duration_text_, region::text::duration, formats_.report, brushes_.gray);
+  std::format_to(std::back_inserter(info_), L"{:.03f} ms scan\n{:.03f} ms draw", scan_ms, draw_ms);
+  draw(dc_, info_, region::text::duration, formats_.status, brushes_.info);
 
   // Draw labels.
   if (!scene_draw_->labels.empty()) {
@@ -231,7 +232,7 @@ boost::asio::awaitable<void> overwatch::run() noexcept
   }
 
   std::vector<BYTE> data;
-  for (unsigned i = 0; i <= 975; i++) {
+  for (unsigned i = 0; i <= 300; i++) {
     data.push_back(static_cast<BYTE>(i));
   }
   std::vector<text::style> data_styles;
@@ -269,15 +270,11 @@ boost::asio::awaitable<void> overwatch::run() noexcept
     string_.create(factory_, formats_.debug, 256, 32, &mouse.layout);
 
     // Write status.
-    status_.format(L"{}", counter++);
-
-    status_.append(L'\n');
+    status_.format(brushes_.white, L"{}", counter++);
     status_.visualize(data.data(), data.size(), data_styles);
 
     // Write report.
-    report_.format(L"{}", counter++);
-
-    report_.append(L'\n');
+    report_.append(brushes_.white, L"Searching ...");
     report_.visualize(data.data(), data.size(), data_styles);
 
     // Create status.

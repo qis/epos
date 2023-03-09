@@ -66,16 +66,14 @@ public:
     string_.reserve(string_.size() + size * 3 + size / 16);
     auto dst = std::back_inserter(string_);
     auto src = reinterpret_cast<const BYTE*>(data);
-    if (size) {
+    for (std::size_t i = 0; i < size; i++) {
       const auto byte = *src++;
+      *dst++ = i % 16 == 0 ? L'\n' : i % 4 == 0 ? L' ' : L'\x2004';
       *dst++ = format_byte_segment(byte >> 4);
       *dst++ = format_byte_segment(byte & 0x0F);
     }
-    for (std::size_t i = 1; i < size; i++) {
-      const auto byte = *src++;
-      *dst++ = i % 16 == 0 ? L'\n' : L'\x2004';
-      *dst++ = format_byte_segment(byte >> 4);
-      *dst++ = format_byte_segment(byte & 0x0F);
+    if (size) {
+      *dst = L'\n';
     }
   }
 
