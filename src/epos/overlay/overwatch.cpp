@@ -92,16 +92,16 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   HR(builder->CreateFontSet(&set));
   HR(factory_->CreateFontCollectionFromFontSet(set.Get(), DWRITE_FONT_FAMILY_MODEL_TYPOGRAPHIC, &fonts_));
 
-  // Create DirectWrite brushes.
+  // Create DirectWrite brushes (uses material design colors).
   const auto create_brush = [this](auto& dc, UINT32 color, FLOAT alpha, ID2D1SolidColorBrush** brush) {
     HR(dc->CreateSolidColorBrush(D2D1::ColorF(color, alpha), brush));
   };
 
-  create_brush(dc_, 0xF44336, 1.0f, &brushes_.red);     // A500 Red
-  create_brush(dc_, 0xFFA726, 1.0f, &brushes_.orange);  // A400 Orange
-  create_brush(dc_, 0xFFF59D, 1.0f, &brushes_.yellow);  // A200 Yellow
-  create_brush(dc_, 0x8BC34A, 1.0f, &brushes_.green);   // A500 Light Green
-  create_brush(dc_, 0x29B6F6, 1.0f, &brushes_.blue);    // A400 Light Blue
+  create_brush(dc_, 0xE57373, 1.0f, &brushes_.red);     // A300 Red
+  create_brush(dc_, 0xFFB74D, 1.0f, &brushes_.orange);  // A300 Orange
+  create_brush(dc_, 0xFFF176, 1.0f, &brushes_.yellow);  // A300 Yellow
+  create_brush(dc_, 0xAED581, 1.0f, &brushes_.green);   // A300 Light Green
+  create_brush(dc_, 0x4FC3F7, 1.0f, &brushes_.blue);    // A300 Light Blue
   create_brush(dc_, 0x000000, 1.0f, &brushes_.black);   // Black
   create_brush(dc_, 0xFFFFFF, 1.0f, &brushes_.white);   // White
   create_brush(dc_, 0xF0F0F0, 0.6f, &brushes_.gray);    // Gray
@@ -115,7 +115,7 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   };
 
   create_font(L"Roboto", 14.0f, FALSE, &formats_.label);
-  create_font(L"Roboto Mono", 10.0f, FALSE, &formats_.debug);
+  create_font(L"Roboto Mono", 11.0f, FALSE, &formats_.debug);
   create_font(L"Roboto Mono", 12.0f, FALSE, &formats_.status);
   create_font(L"Roboto Mono", 12.0f, FALSE, &formats_.report);
   formats_.label->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
