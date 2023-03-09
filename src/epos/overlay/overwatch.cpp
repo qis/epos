@@ -48,8 +48,10 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   constexpr auto options = D2D1_COMPATIBLE_RENDER_TARGET_OPTIONS_NONE;
   const auto format = D2D1::PixelFormat(DXGI_FORMAT_A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
   HR(dc_->CreateCompatibleRenderTarget(nullptr, nullptr, &format, options, &outline_dc_));
-  HR(outline_dc_->CreateSolidColorBrush(D2D1::ColorF(0x000000, 1.0f), &outline_brush_));
+  outline_dc_->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+
   HR(outline_dc_->GetBitmap(&outline_));
+  HR(outline_dc_->CreateSolidColorBrush(D2D1::ColorF(0x000000, 1.0f), &outline_brush_));
 
   HR(dc_->CreateEffect(CLSID_D2D1Morphology, &outline_dilate_));
   HR(outline_dilate_->SetValue(D2D1_MORPHOLOGY_PROP_MODE, D2D1_MORPHOLOGY_MODE_DILATE));
@@ -58,6 +60,15 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   outline_dilate_->SetInput(0, outline_.Get());
 
   HR(DWriteCreateFactory(DWRITE_FACTORY_TYPE_ISOLATED, __uuidof(factory_), &factory_));
+
+  HR(factory_->CreateRenderingParams(&params_));
+  const auto gamma = params_->GetGamma();
+  const auto contrast = params_->GetEnhancedContrast();
+  const auto geometry = params_->GetPixelGeometry();
+  const auto mode = DWRITE_RENDERING_MODE_OUTLINE;
+  HR(factory_->CreateCustomRenderingParams(gamma, contrast, 0.0f, geometry, mode, &params_));
+  outline_dc_->SetTextRenderingParams(params_.Get());
+  dc_->SetTextRenderingParams(params_.Get());
 
   ComPtr<IDWriteInMemoryFontFileLoader> loader;
   HR(factory_->CreateInMemoryFontFileLoader(&loader));
@@ -103,7 +114,7 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   gradient[1].color = D2D1::ColorF(D2D1::ColorF::Black, 0.0f);
   gradient[1].position = 1.0f;
   ComPtr<ID2D1GradientStopCollection> shade;
-  HR(dc_->CreateGradientStopCollection(gradient, 2, D2D1_GAMMA_2_2, D2D1_EXTEND_MODE_CLAMP, &shade));
+  HR(dc_->CreateGradientStopCollection(gradient, 2, D2D1_GAMMA_2_2, D2D1_EXTEND_MODE_MIRROR, &shade));
 
   HR(dc_->CreateLinearGradientBrush(
     D2D1::LinearGradientBrushProperties(
@@ -203,7 +214,7 @@ void overwatch::render() noexcept
 
   // Draw labels.
   if (!scene_draw_->labels.empty()) {
-    dc_->DrawImage(outline_dilate_.Get());
+    dc_->DrawImage(outline_dilate_.Get(), D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR);
     for (auto& label : scene_draw_->labels) {
       draw(dc_, { label.x, label.y }, label.layout, brushes_.white);
     }

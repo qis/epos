@@ -112,6 +112,7 @@ private:
   ComPtr<ID2D1Effect> outline_dilate_;
 
   ComPtr<IDWriteFactory6> factory_;
+  ComPtr<IDWriteRenderingParams> params_;
   ComPtr<IDWriteFontCollection2> fonts_;
 
   struct brushes {

@@ -64,6 +64,7 @@ overlay::overlay(HINSTANCE instance, HWND hwnd, long cx, long cy)
   constexpr auto d2d_device_options = D2D1_DEVICE_CONTEXT_OPTIONS_NONE;
 #endif
   HR(d2d_device->CreateDeviceContext(d2d_device_options, &dc_));
+  dc_->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 
   // Create bitmap render target for swap chain.
   ComPtr<IDXGISurface2> surface;
