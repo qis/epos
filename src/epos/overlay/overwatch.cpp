@@ -204,7 +204,9 @@ void overwatch::render() noexcept
   std::format_to(std::back_inserter(info_), L"{:.03f} ms scan\n{:.03f} ms draw", scan_ms, draw_ms);
   draw(dc_, info_, region::text::duration, formats_.status, brushes_.info);
 
-  // Draw labels.
+  // Draw circles, rectangles, polygons and labels.
+  // TODO
+
   if (!scene_draw_->labels.empty()) {
     dc_->DrawImage(outline_dilate_.Get(), D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR);
     for (auto& label : scene_draw_->labels) {
@@ -261,7 +263,9 @@ boost::asio::awaitable<void> overwatch::run() noexcept
       mouse_->Acquire();
     }
 
-    // Add labels.
+    // Add circles, rectangles, polygons and labels.
+    // TODO
+
     string_.clear();
     string_.format(brushes_.blue, L"{:.01f}", mouse_position.x);
     string_.append(L':');
@@ -271,7 +275,6 @@ boost::asio::awaitable<void> overwatch::run() noexcept
 
     // Write status.
     status_.format(brushes_.white, L"{}", counter++);
-    status_.visualize(data.data(), data.size(), data_styles);
 
     // Write report.
     report_.append(brushes_.white, L"Searching ...");
@@ -304,9 +307,9 @@ boost::asio::awaitable<void> overwatch::run() noexcept
     update();
 
     // Clear scene.
-    scene_work_->labels.clear();
     scene_work_->status.Reset();
     scene_work_->report.Reset();
+    scene_work_->labels.clear();
     status_.clear();
     report_.clear();
 

@@ -140,9 +140,9 @@ private:
   };
 
   struct scene {
-    std::vector<label> labels;
     ComPtr<IDWriteTextLayout> status;
     ComPtr<IDWriteTextLayout> report;
+    std::vector<label> labels;
     clock::duration duration{};
   };
 
