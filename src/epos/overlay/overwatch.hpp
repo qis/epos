@@ -31,9 +31,9 @@ public:
 
   // Scene regions.
   struct region {
-    static constexpr D2D1_RECT_F status{ 0, 0, sx, sh };
+    static constexpr D2D1_RECT_F status{ 0, 0, sx, sh - 30 };
     static constexpr D2D1_RECT_F screen{ sx, sy, sx + sw, sy + sh };
-    static constexpr D2D1_RECT_F report{ sx + sw, 0, dw, sh };
+    static constexpr D2D1_RECT_F report{ sx + sw, 0, dw, sh - 30 };
 
     // Text regions.
     struct text {
@@ -58,7 +58,7 @@ public:
       };
       static constexpr D2D1_RECT_F duration{
         region::report.left + margin,
-        region::report.bottom - margin - 58,
+        region::report.bottom - margin - 28,
         region::report.right - margin,
         region::report.bottom,
       };
@@ -124,6 +124,8 @@ private:
     ComPtr<ID2D1SolidColorBrush> black;
     ComPtr<ID2D1SolidColorBrush> white;
     ComPtr<ID2D1SolidColorBrush> gray;
+    ComPtr<ID2D1LinearGradientBrush> status;
+    ComPtr<ID2D1LinearGradientBrush> report;
   } brushes_;
 
   struct formats {

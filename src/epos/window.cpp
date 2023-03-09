@@ -113,8 +113,11 @@ void window::on_destroy() noexcept
   // Hide window.
   ShowWindow(hwnd_, SW_HIDE);
 
-  // Destroy overlay and view.
-  overlay_.reset();
+  // Destroy overlay.
+  if (overlay_) {
+    overlay_->stop();
+    overlay_.reset();
+  }
 
   // Delete notification icon.
   Shell_NotifyIcon(NIM_DELETE, &icon_);
@@ -126,7 +129,10 @@ void window::on_destroy() noexcept
 void window::on_close() noexcept
 {
   // Destroy overlay.
-  overlay_.reset();
+  if (overlay_) {
+    overlay_->stop();
+    overlay_.reset();
+  }
 }
 
 void window::on_paint() noexcept

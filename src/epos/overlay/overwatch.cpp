@@ -106,6 +106,28 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   create_brush(dc_, 0xFFFFFF, 1.0f, &brushes_.white);   // White
   create_brush(dc_, 0xF0F0F0, 0.6f, &brushes_.gray);    // Gray
 
+  D2D1_GRADIENT_STOP gradient[2];
+  gradient[0].color = D2D1::ColorF(D2D1::ColorF::Black, 0.8f);
+  gradient[0].position = 0.0f;
+  gradient[1].color = D2D1::ColorF(D2D1::ColorF::Black, 0.0f);
+  gradient[1].position = 1.0f;
+  ComPtr<ID2D1GradientStopCollection> shade;
+  HR(dc_->CreateGradientStopCollection(gradient, 2, D2D1_GAMMA_2_2, D2D1_EXTEND_MODE_CLAMP, &shade));
+
+  HR(dc_->CreateLinearGradientBrush(
+    D2D1::LinearGradientBrushProperties(
+      D2D1::Point2F(region::status.left, region::status.top + 320),
+      D2D1::Point2F(region::status.right, region::status.bottom - 64)),
+    shade.Get(),
+    &brushes_.status));
+
+  HR(dc_->CreateLinearGradientBrush(
+    D2D1::LinearGradientBrushProperties(
+      D2D1::Point2F(region::report.right, region::report.top + 320),
+      D2D1::Point2F(region::report.left, region::report.bottom - 64)),
+    shade.Get(),
+    &brushes_.report));
+
   // Create DirectWrite fonts.
   const auto create_font = [this](LPCWSTR name, FLOAT size, BOOL bold, IDWriteTextFormat** format) {
     constexpr auto style = DWRITE_FONT_STYLE_NORMAL;
@@ -156,6 +178,27 @@ void overwatch::render() noexcept
   dc_->Clear();
   dc_->SetTransform(D2D1::IdentityMatrix());
 
+  // Draw status.
+  if (scene_draw_->status) {
+    dc_->FillRectangle(region::status, brushes_.status.Get());
+    constexpr D2D1_POINT_2F origin{ region::text::status.left, region::text::status.top };
+    draw(dc_, origin, scene_draw_->status, brushes_.white);
+  }
+
+  // Draw report.
+  if (scene_draw_->report) {
+    dc_->FillRectangle(region::report, brushes_.report.Get());
+    constexpr D2D1_POINT_2F origin{ region::text::report.left, region::text::report.top };
+    draw(dc_, origin, scene_draw_->report, brushes_.white);
+  }
+
+  // Draw duration text.
+  duration_text_.clear();
+  const auto draw_ms = duration_cast<milliseconds>(duration_).count();
+  const auto scan_ms = duration_cast<milliseconds>(scene_draw_->duration).count();
+  std::format_to(std::back_inserter(duration_text_), L"{:.03f} ms scan\n{:.03f} ms draw", scan_ms, draw_ms);
+  draw(dc_, duration_text_, region::text::duration, formats_.report, brushes_.gray);
+
   // Draw labels.
   if (!scene_draw_->labels.empty()) {
     outline_dc_->BeginDraw();
@@ -169,25 +212,6 @@ void overwatch::render() noexcept
       draw(dc_, { label.x, label.y }, label.layout, brushes_.white);
     }
   }
-
-  // Draw status.
-  if (scene_draw_->status) {
-    constexpr D2D1_POINT_2F origin{ region::text::status.left, region::text::status.top };
-    draw(dc_, origin, scene_draw_->status, brushes_.white);
-  }
-
-  // Draw report.
-  if (scene_draw_->report) {
-    constexpr D2D1_POINT_2F origin{ region::text::report.left, region::text::report.top };
-    draw(dc_, origin, scene_draw_->report, brushes_.white);
-  }
-
-  // Draw duration text.
-  duration_text_.clear();
-  const auto draw_ms = duration_cast<milliseconds>(duration_).count();
-  const auto scan_ms = duration_cast<milliseconds>(scene_draw_->duration).count();
-  std::format_to(std::back_inserter(duration_text_), L"{:.03f} ms scan\n{:.03f} ms draw", scan_ms, draw_ms);
-  draw(dc_, duration_text_, region::text::duration, formats_.report, brushes_.gray);
 
   // Update draw duration.
   duration_ = clock::now() - tp0;
@@ -207,6 +231,15 @@ boost::asio::awaitable<void> overwatch::run() noexcept
     mouse_position.x = point.x;
     mouse_position.y = point.y;
   }
+
+  std::vector<BYTE> data;
+  for (unsigned i = 0; i <= 975; i++) {
+    data.push_back(static_cast<BYTE>(i));
+  }
+  std::vector<text::style> data_styles;
+  data_styles.emplace_back(1, 3, brushes_.red.Get());
+  data_styles.emplace_back(47, 4, brushes_.green.Get());
+  data_styles.emplace_back(250, 7, brushes_.blue.Get());
 
   size_t counter = 0;
   while (!stop_.load(std::memory_order_relaxed)) {
@@ -240,8 +273,14 @@ boost::asio::awaitable<void> overwatch::run() noexcept
     // Write status.
     status_.format(L"{}", counter++);
 
+    status_.append(L'\n');
+    status_.visualize(data.data(), data.size(), data_styles);
+
     // Write report.
     report_.format(L"{}", counter++);
+
+    report_.append(L'\n');
+    report_.visualize(data.data(), data.size(), data_styles);
 
     // Create status.
     if (status_) {
