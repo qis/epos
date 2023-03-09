@@ -50,8 +50,8 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   HR(dc_->CreateCompatibleRenderTarget(nullptr, nullptr, &format, options, &outline_dc_));
   outline_dc_->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 
-  HR(outline_dc_->GetBitmap(&outline_));
   HR(outline_dc_->CreateSolidColorBrush(D2D1::ColorF(0x000000, 1.0f), &outline_brush_));
+  HR(outline_dc_->GetBitmap(&outline_));
 
   HR(dc_->CreateEffect(CLSID_D2D1Morphology, &outline_dilate_));
   HR(outline_dilate_->SetValue(D2D1_MORPHOLOGY_PROP_MODE, D2D1_MORPHOLOGY_MODE_DILATE));
@@ -60,15 +60,6 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   outline_dilate_->SetInput(0, outline_.Get());
 
   HR(DWriteCreateFactory(DWRITE_FACTORY_TYPE_ISOLATED, __uuidof(factory_), &factory_));
-
-  HR(factory_->CreateRenderingParams(&params_));
-  const auto gamma = params_->GetGamma();
-  const auto contrast = params_->GetEnhancedContrast();
-  const auto geometry = params_->GetPixelGeometry();
-  const auto mode = DWRITE_RENDERING_MODE_OUTLINE;
-  HR(factory_->CreateCustomRenderingParams(gamma, contrast, 0.0f, geometry, mode, &params_));
-  outline_dc_->SetTextRenderingParams(params_.Get());
-  dc_->SetTextRenderingParams(params_.Get());
 
   ComPtr<IDWriteInMemoryFontFileLoader> loader;
   HR(factory_->CreateInMemoryFontFileLoader(&loader));
