@@ -45,7 +45,9 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   HR(mouse_->Acquire());
 
   // Create DirectWrite objects.
-  HR(dc_->CreateCompatibleRenderTarget(&outline_dc_));
+  constexpr auto options = D2D1_COMPATIBLE_RENDER_TARGET_OPTIONS_NONE;
+  const auto format = D2D1::PixelFormat(DXGI_FORMAT_A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
+  HR(dc_->CreateCompatibleRenderTarget(nullptr, nullptr, &format, options, &outline_dc_));
   HR(outline_dc_->CreateSolidColorBrush(D2D1::ColorF(0x000000, 1.0f), &outline_brush_));
   HR(outline_dc_->GetBitmap(&outline_));
 
@@ -54,17 +56,6 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   HR(outline_dilate_->SetValue(D2D1_MORPHOLOGY_PROP_HEIGHT, 3));
   HR(outline_dilate_->SetValue(D2D1_MORPHOLOGY_PROP_WIDTH, 3));
   outline_dilate_->SetInput(0, outline_.Get());
-
-  HR(dc_->CreateEffect(CLSID_D2D1ColorMatrix, &outline_color_));
-  constexpr D2D1_MATRIX_5X4_F matrix{ .m{
-    { 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 1.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f },
-  } };
-  HR(outline_color_->SetValue(D2D1_COLORMATRIX_PROP_COLOR_MATRIX, matrix));
-  outline_color_->SetInputEffect(0, outline_dilate_.Get());
 
   HR(DWriteCreateFactory(DWRITE_FACTORY_TYPE_ISOLATED, __uuidof(factory_), &factory_));
 
@@ -168,10 +159,21 @@ void overwatch::render() noexcept
   // Measure draw duration.
   const auto tp0 = clock::now();
 
-  // Swap draw and done scenes if the done scene was updated.
+  // Handle scene updated notification.
   auto scene_done_updated_expected = true;
   if (scene_done_updated_.compare_exchange_weak(scene_done_updated_expected, false)) {
+    // Swap draw and done scenes.
     scene_draw_ = scene_done_.exchange(scene_draw_);
+
+    // Draw outlines.
+    if (!scene_draw_->labels.empty()) {
+      outline_dc_->BeginDraw();
+      outline_dc_->Clear();
+      for (auto& label : scene_draw_->labels) {
+        draw(outline_dc_, { label.x, label.y }, label.layout, brushes_.black);
+      }
+      outline_dc_->EndDraw();
+    }
   }
 
   // Clear scene.
@@ -201,13 +203,7 @@ void overwatch::render() noexcept
 
   // Draw labels.
   if (!scene_draw_->labels.empty()) {
-    outline_dc_->BeginDraw();
-    outline_dc_->Clear();
-    for (auto& label : scene_draw_->labels) {
-      draw(outline_dc_, { label.x, label.y }, label.layout, brushes_.black);
-    }
-    outline_dc_->EndDraw();
-    dc_->DrawImage(outline_color_.Get());
+    dc_->DrawImage(outline_dilate_.Get());
     for (auto& label : scene_draw_->labels) {
       draw(dc_, { label.x, label.y }, label.layout, brushes_.white);
     }

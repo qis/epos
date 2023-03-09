@@ -110,7 +110,6 @@ private:
   ComPtr<ID2D1BitmapRenderTarget> outline_dc_;
   ComPtr<ID2D1SolidColorBrush> outline_brush_;
   ComPtr<ID2D1Effect> outline_dilate_;
-  ComPtr<ID2D1Effect> outline_color_;
 
   ComPtr<IDWriteFactory6> factory_;
   ComPtr<IDWriteFontCollection2> fonts_;
