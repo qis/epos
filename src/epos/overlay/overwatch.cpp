@@ -66,7 +66,7 @@ overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   HR(outline_color_->SetValue(D2D1_COLORMATRIX_PROP_COLOR_MATRIX, matrix));
   outline_color_->SetInputEffect(0, outline_dilate_.Get());
 
-  HR(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(factory_), &factory_));
+  HR(DWriteCreateFactory(DWRITE_FACTORY_TYPE_ISOLATED, __uuidof(factory_), &factory_));
 
   ComPtr<IDWriteInMemoryFontFileLoader> loader;
   HR(factory_->CreateInMemoryFontFileLoader(&loader));
