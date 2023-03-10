@@ -311,6 +311,9 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
 {
   // Get input state.
   const auto input = co_await input_.get();
+  if (input.pressed(key::pause)) {
+    co_return false;
+  }
 
   // Write status.
   status_.write(L"{}:{}", input.mx, input.my);
