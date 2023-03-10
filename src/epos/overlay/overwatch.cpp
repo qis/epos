@@ -242,6 +242,9 @@ boost::asio::awaitable<void> overwatch::run() noexcept
 
     // Write status.
     status_.format(brushes_.white, L"{}", counter++);
+    status_.append(state.down(button::left) ? brushes_.red : brushes_.green, L"\nLMB");
+    status_.append(state.down(button::right) ? brushes_.red : brushes_.green, L"\nRMB");
+    status_.visualize(state.buttons.data(), state.buttons.size());
 
     // Write report.
     report_.append(brushes_.white, L"Searching ...");

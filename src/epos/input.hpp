@@ -90,7 +90,7 @@ public:
     /// Checks if the current button or key state is up.
     constexpr bool up(Input auto input) const noexcept
     {
-      return get(input) & 0x01 == 0x00;
+      return (get(input) & 0x01) == 0x00;
     }
 
     /// Checks if the current button or key state is down.
@@ -102,13 +102,13 @@ public:
     /// Checks if the button or key was pressed during @ref duration.
     constexpr bool pressed(Input auto input) const noexcept
     {
-      return get(input) & 0x02 != 0x00;
+      return (get(input) & 0x02) != 0x00;
     }
 
     /// Checks if the button or key was released during @ref duration.
     constexpr bool released(Input auto input) const noexcept
     {
-      return get(input) & 0x04 != 0x00;
+      return (get(input) & 0x04) != 0x00;
     }
 
     /// Returns button state during @ref duration.
