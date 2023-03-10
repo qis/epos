@@ -290,12 +290,9 @@ boost::asio::awaitable<void> overwatch::run() noexcept
       }
     }
 
-    // Reset report.
-    report_.reset(brushes_.red, L"{}\n", pid);
-
     // Handle close.
     co_await on_close();
-    co_await update(1s);
+    co_await update(6s);
   }
   co_return;
 }
@@ -309,7 +306,7 @@ boost::asio::awaitable<bool> overwatch::on_open() noexcept
 
 boost::asio::awaitable<bool> overwatch::on_process() noexcept
 {
-  // Get input state.
+  // Get input state and changes since last call.
   const auto input = co_await input_.get();
   if (input.pressed(key::pause)) {
     co_return false;
