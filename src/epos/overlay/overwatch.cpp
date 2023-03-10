@@ -188,104 +188,142 @@ void overwatch::render() noexcept
   duration_ = clock::now() - tp0;
 }
 
+boost::asio::awaitable<void> overwatch::update(std::chrono::steady_clock::duration wait) noexcept
+{
+  // Create status.
+  if (status_) {
+    constexpr auto cx = region::text::status.right - region::text::status.left;
+    constexpr auto cy = region::text::status.bottom - region::text::status.top;
+    status_.create(factory_, formats_.status, cx, cy, &scene_work_->status);
+  }
+
+  // Create report.
+  if (report_) {
+    constexpr auto cx = region::text::report.right - region::text::report.left;
+    constexpr auto cy = region::text::report.bottom - region::text::report.top;
+    report_.create(factory_, formats_.report, cx, cy, &scene_work_->report);
+  }
+
+  // Update work duration.
+  const auto update_time_point = std::exchange(update_time_point_, clock::now());
+  scene_work_->duration = update_time_point_ - update_time_point;
+
+  // Swap work and done scenes.
+  scene_work_ = scene_done_.exchange(scene_work_);
+
+  // Indicate that the done scene was updated.
+  scene_done_updated_.store(true, std::memory_order_release);
+
+  // Signal overlay to call render() on another thread.
+  overlay::update();
+
+  // Clear scene.
+  scene_work_->status.Reset();
+  scene_work_->report.Reset();
+  scene_work_->labels.clear();
+  status_.reset();
+  report_.reset();
+
+  // Limit frame rate.
+  if (wait > 0ms) {
+    timer_.expires_from_now(wait);
+    co_await timer_.async_wait();
+  }
+  co_return;
+}
+
 boost::asio::awaitable<void> overwatch::run() noexcept
 {
-  const auto executor = co_await boost::asio::this_coro::executor;
-  //timer timer{ executor };
-
-  DIMOUSESTATE2 mouse_state{};
-  D2D1_POINT_2F mouse_position{};
-
-  POINT point{};
-  if (GetCursorPos(&point)) {
-    mouse_position.x = point.x;
-    mouse_position.y = point.y;
-    co_await input_.get();
-  }
-
-  std::vector<BYTE> data;
-  for (unsigned i = 0; i <= 300; i++) {
-    data.push_back(static_cast<BYTE>(i));
-  }
-  std::vector<text::style> data_styles;
-  data_styles.emplace_back(1, 3, brushes_.red.Get());
-  data_styles.emplace_back(47, 4, brushes_.green.Get());
-  data_styles.emplace_back(250, 7, brushes_.blue.Get());
-
-  size_t counter = 0;
+  auto timer = epos::timer{ co_await boost::asio::this_coro::executor };
   while (!stop_.load(std::memory_order_relaxed)) {
-    // Measure scan duration.
-    const auto tp0 = clock::now();
+    // Close device.
+    device_.close();
 
-    // TODO: Scan memory.
-    //if (duration < 7ms) {
-    //  timer.expires_from_now(7ms - duration);
-    //  if (const auto [ec] = co_await timer.async_wait(); ec) {
-    //    co_return;
-    //  }
-    //}
-
-    // Update mouse position.
-    const auto state = co_await input_.get();
-    mouse_position.x += state.mx / 4.0f;
-    mouse_position.y += state.my / 4.0f;
-
-    // Add circles, rectangles, polygons and labels.
-    // TODO
-
-    string_.clear();
-    string_.format(brushes_.blue, L"{:.01f}", mouse_position.x);
-    string_.append(L':');
-    string_.format(brushes_.green, L"{:.01f}", mouse_position.y);
-    auto& mouse = scene_work_->labels.emplace_back(mouse_position.x + 16, mouse_position.y + 16);
-    string_.create(factory_, formats_.debug, 256, 32, &mouse.layout);
-
-    // Write status.
-    status_.format(brushes_.white, L"{}", counter++);
-    status_.append(state.down(button::left) ? brushes_.red : brushes_.green, L"\nLMB");
-    status_.append(state.down(button::right) ? brushes_.red : brushes_.green, L"\nRMB");
-    status_.visualize(state.buttons.data(), state.buttons.size());
-
-    // Write report.
-    report_.append(brushes_.white, L"Searching ...");
-    report_.visualize(data.data(), data.size(), data_styles);
-
-    // Create status.
-    if (status_) {
-      constexpr auto cx = region::text::status.right - region::text::status.left;
-      constexpr auto cy = region::text::status.bottom - region::text::status.top;
-      status_.create(factory_, formats_.status, cx, cy, &scene_work_->status);
+    // Find window.
+    const auto hwnd = FindWindow("TankWindowClass", "Overwatch");
+    if (!hwnd) {
+      co_await update(1s);
+      continue;
     }
 
-    // Create report.
-    if (report_) {
-      constexpr auto cx = region::text::report.right - region::text::report.left;
-      constexpr auto cy = region::text::report.bottom - region::text::report.top;
-      report_.create(factory_, formats_.report, cx, cy, &scene_work_->report);
+    // Reset report.
+    report_.reset(brushes_.white, L"Searching for process ...");
+    co_await update();
+
+    // Find process.
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (!pid) {
+      co_await update(1s);
+      continue;
     }
 
-    // Update scan duration.
-    scene_work_->duration = clock::now() - tp0;
+    // Reset report.
+    report_.reset(brushes_.white, L"{} ...\n", pid);
+    co_await update();
 
-    // Swap work and done scenes.
-    scene_work_ = scene_done_.exchange(scene_work_);
+    // Open process.
+    if (const auto rv = device_.open(pid); !rv) {
+      report_.write(brushes_.red, rv.error().message());
+      co_await update(1s);
+      continue;
+    }
 
-    // Indicate that the done scene was updated.
-    scene_done_updated_.store(true, std::memory_order_release);
+    // Reset report.
+    report_.reset(brushes_.white, L"{}\n", pid);
+    co_await update();
 
-    // Signal overlay to call render() on another thread.
-    update();
+    // Handle open.
+    if (!co_await on_open()) {
+      co_await update(1s);
+      continue;
+    }
 
-    // Clear scene.
-    scene_work_->status.Reset();
-    scene_work_->report.Reset();
-    scene_work_->labels.clear();
-    status_.clear();
-    report_.clear();
+    // Handle process.
+    while (!stop_.load(std::memory_order_relaxed)) {
+      // Reset report.
+      report_.reset(brushes_.green, L"{}\n", pid);
 
-    // Limit frame rate.
-    std::this_thread::sleep_for(1ms);
+      // Handle process.
+      if (!co_await on_process()) {
+        break;
+      }
+    }
+
+    // Reset report.
+    report_.reset(brushes_.red, L"{}\n", pid);
+
+    // Handle close.
+    co_await on_close();
+    co_await update(1s);
   }
+  co_return;
+}
+
+boost::asio::awaitable<bool> overwatch::on_open() noexcept
+{
+  // Reset input state.
+  co_await input_.get();
+  co_return true;
+}
+
+boost::asio::awaitable<bool> overwatch::on_process() noexcept
+{
+  // Get input state.
+  const auto input = co_await input_.get();
+
+  // Write status.
+  status_.write(L"{}:{}", input.mx, input.my);
+
+  // Update scene.
+  co_await update(1ms);
+
+  // Report success.
+  co_return true;
+}
+
+boost::asio::awaitable<void> overwatch::on_close() noexcept
+{
   co_return;
 }
 

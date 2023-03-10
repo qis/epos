@@ -23,50 +23,176 @@ public:
     return !string_.empty();
   }
 
-  void append(wchar_t c)
+  __forceinline void reset() noexcept
+  {
+    string_.clear();
+    styles_.clear();
+  }
+
+  __forceinline void reset(wchar_t c)
+  {
+    string_.assign(1, c);
+    styles_.clear();
+  }
+
+  template <class T>
+  __forceinline void reset(ComPtr<T>& effect, wchar_t c)
+  {
+    reset(c);
+    styles_.emplace_back(0, 1, effect.Get());
+  }
+
+  __forceinline void reset(std::size_t count, wchar_t c)
+  {
+    string_.assign(count, c);
+    styles_.clear();
+  }
+
+  template <class T>
+  __forceinline void reset(ComPtr<T>& effect, std::size_t count, wchar_t c)
+  {
+    reset(count, c);
+    styles_.emplace_back(0, count, effect.Get());
+  }
+
+  __forceinline void reset(std::string_view string)
+  {
+    reset(S2W(string));
+  }
+
+  __forceinline void reset(std::wstring_view string)
+  {
+    string_.assign(string);
+    styles_.clear();
+  }
+
+  template <class T>
+  __forceinline void reset(ComPtr<T>& effect, std::string_view string)
+  {
+    reset(effect, S2W(string));
+  }
+
+  template <class T>
+  __forceinline void reset(ComPtr<T>& effect, std::wstring_view string)
+  {
+    reset(string);
+    styles_.emplace_back(0, string_.size(), effect.Get());
+  }
+
+  template <class Arg, class... Args>
+  void reset(std::format_string<Arg, Args...> format, Arg&& arg, Args&&... args)
+  {
+    reset(S2W(std::format(format, std::forward<Arg>(arg), std::forward<Args>(args)...)));
+  }
+
+  template <class Arg, class... Args>
+  void reset(std::wformat_string<Arg, Args...> format, Arg&& arg, Args&&... args)
+  {
+    string_.clear();
+    std::format_to(back_inserter(), format, std::forward<Arg>(arg), std::forward<Args>(args)...);
+    styles_.clear();
+  }
+
+  template <class T, class Arg, class... Args>
+  void reset(ComPtr<T>& effect, std::format_string<Arg, Args...> format, Arg&& arg, Args&&... args)
+  {
+    reset(effect, S2W(std::format(format, std::forward<Arg>(arg), std::forward<Args>(args)...)));
+  }
+
+  template <class T, class Arg, class... Args>
+  void reset(ComPtr<T>& effect, std::wformat_string<Arg, Args...> format, Arg&& arg, Args&&... args)
+  {
+    reset(format, std::forward<Arg>(arg), std::forward<Args>(args)...);
+    styles_.emplace_back(0, string_.size(), effect.Get());
+  }
+
+  __forceinline void write(wchar_t c)
   {
     string_.push_back(c);
   }
 
   template <class T>
-  void append(ComPtr<T>& effect, wchar_t c)
+  __forceinline void write(ComPtr<T>& effect, wchar_t c)
   {
     styles_.emplace_back(string_.size(), 1, effect.Get());
-    string_.push_back(c);
+    write(c);
   }
 
-  void append(std::wstring_view string)
+  __forceinline void write(std::size_t count, wchar_t c)
+  {
+    string_.append(count, c);
+  }
+
+  template <class T>
+  __forceinline void write(ComPtr<T>& effect, std::size_t count, wchar_t c)
+  {
+    styles_.emplace_back(string_.size(), count, effect.Get());
+    write(count, c);
+  }
+
+  __forceinline void write(std::string_view string)
+  {
+    write(S2W(string));
+  }
+
+  __forceinline void write(std::wstring_view string)
   {
     string_.append(string);
   }
 
   template <class T>
-  void append(ComPtr<T>& effect, std::wstring_view string)
+  __forceinline void write(ComPtr<T>& effect, std::string_view string)
+  {
+    write(effect, S2W(string));
+  }
+
+  template <class T>
+  __forceinline void write(ComPtr<T>& effect, std::wstring_view string)
   {
     styles_.emplace_back(string_.size(), string.size(), effect.Get());
-    string_.append(string);
+    write(string);
   }
 
-  template <class... Args>
-  void format(std::wformat_string<Args...> format, Args&&... args)
+  template <class Arg, class... Args>
+  void write(std::format_string<Arg, Args...> format, Arg&& arg, Args&&... args)
   {
-    std::format_to(std::back_inserter(string_), format, std::forward<Args>(args)...);
+    write(S2W(std::format(format, std::forward<Arg>(arg), std::forward<Args>(args)...)));
   }
 
-  template <class T, class... Args>
-  void format(ComPtr<T>& effect, std::wformat_string<Args...> format, Args&&... args)
+  template <class Arg, class... Args>
+  void write(std::wformat_string<Arg, Args...> format, Arg&& arg, Args&&... args)
+  {
+    std::format_to(back_inserter(), format, std::forward<Arg>(arg), std::forward<Args>(args)...);
+  }
+
+  template <class T, class Arg, class... Args>
+  void write(ComPtr<T>& effect, std::format_string<Arg, Args...> format, Arg&& arg, Args&&... args)
+  {
+    write(effect, S2W(std::format(format, std::forward<Arg>(arg), std::forward<Args>(args)...)));
+  }
+
+  template <class T, class Arg, class... Args>
+  void write(ComPtr<T>& effect, std::wformat_string<Arg, Args...> format, Arg&& arg, Args&&... args)
   {
     const auto start = string_.size();
-    std::format_to(std::back_inserter(string_), format, std::forward<Args>(args)...);
+    write(format, std::forward<Arg>(arg), std::forward<Args>(args)...);
     styles_.emplace_back(start, string_.size() - start, effect.Get());
   }
 
   void visualize(const void* data, std::size_t size)
   {
     string_.reserve(string_.size() + size * 3 + size / 16);
-    auto dst = std::back_inserter(string_);
+    auto dst = back_inserter();
     auto src = reinterpret_cast<const BYTE*>(data);
-    for (std::size_t i = 0; i < size; i++) {
+    if (!string_.empty() && string_.back() != L'\n') {
+      *dst++ = L'\n';
+    }
+    if (size) {
+      const auto byte = *src++;
+      *dst++ = format_byte_segment(byte >> 4);
+      *dst++ = format_byte_segment(byte & 0x0F);
+    }
+    for (std::size_t i = 1; i < size; i++) {
       const auto byte = *src++;
       *dst++ = i % 16 == 0 ? L'\n' : i % 4 == 0 ? L' ' : L'\x2004';
       *dst++ = format_byte_segment(byte >> 4);
@@ -95,12 +221,6 @@ public:
     }
   }
 
-  void clear() noexcept
-  {
-    string_.clear();
-    styles_.clear();
-  }
-
   void create(auto& factory, ComPtr<IDWriteTextFormat>& format, FLOAT cx, FLOAT cy, IDWriteTextLayout** layout)
   {
     if (!string_.empty()) {
@@ -118,6 +238,11 @@ public:
   }
 
 private:
+  constexpr std::back_insert_iterator<std::wstring> back_inserter() noexcept
+  {
+    return std::back_inserter(string_);
+  }
+
   static constexpr wchar_t format_byte_segment(BYTE byte) noexcept
   {
     return (byte < 0x0A ? L'0' : L'A' - 0x0A) + byte;

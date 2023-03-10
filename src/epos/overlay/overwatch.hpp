@@ -72,7 +72,12 @@ public:
   void render() noexcept override;
 
 private:
+  boost::asio::awaitable<void> update(std::chrono::steady_clock::duration wait = {}) noexcept;
   boost::asio::awaitable<void> run() noexcept;
+
+  boost::asio::awaitable<bool> on_open() noexcept;
+  boost::asio::awaitable<bool> on_process() noexcept;
+  boost::asio::awaitable<void> on_close() noexcept;
 
   static __forceinline void draw(
     auto& dc,
@@ -150,6 +155,8 @@ private:
   std::atomic<scene*> scene_done_{ &scenes_[2] };
   std::atomic_bool scene_done_updated_{ false };
 
+  clock::time_point update_time_point_{ clock::now() };
+
   text string_;
   text status_;
   text report_;
@@ -158,6 +165,7 @@ private:
 
   std::atomic_bool stop_{ false };
   boost::asio::io_context context_{ 1 };
+  timer timer_{ context_ };
   std::jthread thread_;
 };
 
