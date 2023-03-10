@@ -1,48 +1,18 @@
 #include "overwatch.hpp"
 #include <epos/error.hpp>
 #include <epos/fonts.hpp>
-#include <boost/asio/as_tuple.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
-#include <boost/asio/steady_timer.hpp>
-#include <boost/asio/use_awaitable.hpp>
 
 namespace epos {
-namespace {
-
-using token = decltype(boost::asio::as_tuple(boost::asio::use_awaitable));
-using timer = decltype(token::as_default_on(boost::asio::steady_timer({})));
-
-}  // namespace
 
 overwatch::overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy) :
-  overlay(instance, hwnd, cx, cy)
+  overlay(instance, hwnd, cx, cy), input_(instance, hwnd)
 {
   // Verify window size.
   if (cx != dw || cy != dh) {
     throw std::runtime_error("Invalid display size.");
   }
-
-  // Create DirectInput objects.
-  HR(DirectInput8Create(instance, DIRECTINPUT_VERSION, IID_IDirectInput8, &input_, nullptr));
-
-  HR(input_->CreateDevice(GUID_SysKeyboard, &keybd_, nullptr));
-  HR(keybd_->SetDataFormat(&c_dfDIKeyboard));
-  HR(keybd_->SetCooperativeLevel(hwnd, DISCL_BACKGROUND | DISCL_NONEXCLUSIVE));
-  HR(keybd_->Acquire());
-
-  HR(input_->CreateDevice(GUID_SysMouse, &mouse_, nullptr));
-  HR(mouse_->SetDataFormat(&c_dfDIMouse2));
-  HR(mouse_->SetCooperativeLevel(hwnd, DISCL_BACKGROUND | DISCL_NONEXCLUSIVE));
-
-  DIPROPDWORD dipdw;
-  dipdw.diph.dwSize = sizeof(DIPROPDWORD);
-  dipdw.diph.dwHeaderSize = sizeof(DIPROPHEADER);
-  dipdw.diph.dwObj = 0;
-  dipdw.diph.dwHow = DIPH_DEVICE;
-  dipdw.dwData = 0;  // buffer size
-  HR(mouse_->SetProperty(DIPROP_BUFFERSIZE, &dipdw.diph));
-  HR(mouse_->Acquire());
 
   // Create DirectWrite objects.
   constexpr auto options = D2D1_COMPATIBLE_RENDER_TARGET_OPTIONS_NONE;
@@ -220,17 +190,17 @@ void overwatch::render() noexcept
 
 boost::asio::awaitable<void> overwatch::run() noexcept
 {
-  using namespace std::chrono_literals;
-  timer timer{ co_await boost::asio::this_coro::executor };
+  const auto executor = co_await boost::asio::this_coro::executor;
+  //timer timer{ executor };
 
   DIMOUSESTATE2 mouse_state{};
   D2D1_POINT_2F mouse_position{};
 
   POINT point{};
   if (GetCursorPos(&point)) {
-    mouse_->GetDeviceState(sizeof(mouse_state), &mouse_state);
     mouse_position.x = point.x;
     mouse_position.y = point.y;
+    co_await input_.get();
   }
 
   std::vector<BYTE> data;
@@ -256,12 +226,9 @@ boost::asio::awaitable<void> overwatch::run() noexcept
     //}
 
     // Update mouse position.
-    if (SUCCEEDED(mouse_->GetDeviceState(sizeof(mouse_state), &mouse_state))) {
-      mouse_position.x += mouse_state.lX / 4.0f;
-      mouse_position.y += mouse_state.lY / 4.0f;
-    } else {
-      mouse_->Acquire();
-    }
+    const auto state = co_await input_.get();
+    mouse_position.x += state.mx / 4.0f;
+    mouse_position.y += state.my / 4.0f;
 
     // Add circles, rectangles, polygons and labels.
     // TODO
@@ -314,7 +281,7 @@ boost::asio::awaitable<void> overwatch::run() noexcept
     report_.clear();
 
     // Limit frame rate.
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(1ms);
   }
   co_return;
 }

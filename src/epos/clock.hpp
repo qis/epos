@@ -3,6 +3,8 @@
 
 namespace epos {
 
+using namespace std::chrono_literals;
+
 using clock = std::chrono::high_resolution_clock;
 using nanoseconds = std::chrono::duration<double, std::chrono::nanoseconds::period>;
 using microseconds = std::chrono::duration<double, std::chrono::microseconds::period>;

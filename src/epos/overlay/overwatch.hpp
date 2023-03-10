@@ -1,13 +1,13 @@
 #pragma once
-#include <epos/chrono.hpp>
-#include <epos/com.hpp>
+#include <epos/clock.hpp>
+#include <epos/input.hpp>
 #include <epos/overlay.hpp>
+#include <epos/runtime.hpp>
 #include <epos/text.hpp>
+#include <epos/timer.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <deus.hpp>
-#include <dinput.h>
-#include <dinputd.h>
 #include <dxgi1_2.h>
 #include <array>
 #include <atomic>
@@ -97,9 +97,7 @@ private:
     }
   }
 
-  ComPtr<IDirectInput8> input_;
-  ComPtr<IDirectInputDevice8> keybd_;
-  ComPtr<IDirectInputDevice8> mouse_;
+  input input_;
 
   ComPtr<ID2D1Bitmap> outline_;
   ComPtr<ID2D1BitmapRenderTarget> outline_dc_;
