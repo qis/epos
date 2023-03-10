@@ -1,8 +1,13 @@
 #include "overwatch.hpp"
 #include <epos/error.hpp>
 #include <epos/fonts.hpp>
+#include <epos/signature.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <algorithm>
+#include <functional>
+#include <map>
+#include <set>
 
 namespace epos {
 
@@ -264,8 +269,8 @@ boost::asio::awaitable<void> overwatch::run() noexcept
 
     // Open process.
     if (const auto rv = device_.open(pid); !rv) {
-      report_.write(brushes_.red, rv.error().message());
-      co_await update(1s);
+      report_.write(brushes_.red, "Could not open process.\n{}", rv.error().message());
+      co_await update(6s);
       continue;
     }
 
@@ -281,10 +286,6 @@ boost::asio::awaitable<void> overwatch::run() noexcept
 
     // Handle process.
     while (!stop_.load(std::memory_order_relaxed)) {
-      // Reset report.
-      report_.reset(brushes_.green, L"{}\n", pid);
-
-      // Handle process.
       if (!co_await on_process()) {
         break;
       }
@@ -311,14 +312,202 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
   if (input.pressed(key::pause)) {
     co_return false;
   }
+  //status_.write(L"{}:{}", input.mx, input.my);
 
-  // Write status.
-  status_.write(L"{}:{}", input.mx, input.my);
+  // Query process.
+  interval qiery_interval;
+  const auto query = device_.query();
+  if (!query) {
+    report_.reset(brushes_.red, "Could not query process.\n");
+    report_.write(query.error().message());
+    co_return false;
+  }
+  const auto query_s = qiery_interval.s();
+  std::size_t image_size = 0;
+  std::size_t mapped_size = 0;
+  std::size_t private_size = 0;
+  std::size_t unknown_size = 0;
+  std::map<ULONG, std::size_t> region_allocation_protect;
+  std::map<ULONG, std::size_t> region_protect;
+  std::map<ULONG, std::size_t> region_type;
+  for (const auto& region : *query) {
+    ++region_allocation_protect[region.allocation_protect];
+    ++region_protect[region.protect];
+    ++region_type[region.type];
+    switch (region.type) {
+    case MEM_IMAGE:
+      image_size += region.region_size;
+      break;
+    case MEM_MAPPED:
+      mapped_size += region.region_size;
+      break;
+    case MEM_PRIVATE:
+      private_size += region.region_size;
+      break;
+    default:
+      unknown_size += region.region_size;
+      break;
+    }
+  }
 
-  // Update scene.
-  co_await update(1ms);
+  const auto write_protection = [this](const std::map<ULONG, std::size_t>& protection) {
+    for (const auto flags : protection) {
+      report_.write(L"{:08X}", flags.first);
+      if (flags.first & PAGE_EXECUTE) {
+        report_.write(L" EXECUTE");
+      }
+      if (flags.first & PAGE_EXECUTE_READ) {
+        report_.write(L" EXECUTE_READ");
+      }
+      if (flags.first & PAGE_EXECUTE_READWRITE) {
+        report_.write(L" EXECUTE_READWRITE");
+      }
+      if (flags.first & PAGE_EXECUTE_WRITECOPY) {
+        report_.write(L" EXECUTE_WRITECOPY");
+      }
+      if (flags.first & PAGE_NOACCESS) {
+        report_.write(L" NOACCESS");
+      }
+      if (flags.first & PAGE_READONLY) {
+        report_.write(L" READONLY");
+      }
+      if (flags.first & PAGE_READWRITE) {
+        report_.write(L" READWRITE");
+      }
+      if (flags.first & PAGE_WRITECOPY) {
+        report_.write(L" WRITECOPY");
+      }
+      if (flags.first & PAGE_TARGETS_INVALID) {
+        report_.write(L" TARGETS_INVALID");
+      }
+      if (flags.first & PAGE_TARGETS_NO_UPDATE) {
+        report_.write(L" TARGETS_NO_UPDATE");
+      }
+      if (flags.first & PAGE_GUARD) {
+        report_.write(L" GUARD");
+      }
+      if (flags.first & PAGE_NOCACHE) {
+        report_.write(L" NOCACHE");
+      }
+      if (flags.first & PAGE_WRITECOMBINE) {
+        report_.write(L" WRITECOMBINE");
+      }
+      if (flags.first & PAGE_ENCLAVE_DECOMMIT) {
+        report_.write(L" ENCLAVE_DECOMMIT");
+      }
+      if (flags.first & PAGE_ENCLAVE_THREAD_CONTROL) {
+        report_.write(L" ENCLAVE_THREAD_CONTROL");
+      }
+      if (flags.first & PAGE_ENCLAVE_UNVALIDATED) {
+        report_.write(L" ENCLAVE_UNVALIDATED");
+      }
+      report_.write(L" ({})\n", flags.second);
+    }
+  };
 
-  // Report success.
+  const auto write_type = [this](const std::map<ULONG, std::size_t>& type) {
+    for (const auto& flags : type) {
+      report_.write(L"{:08X}", flags.first);
+      if (flags.first & MEM_IMAGE) {
+        report_.write(L" IMAGE");
+      }
+      if (flags.first & MEM_MAPPED) {
+        report_.write(L" MAPPED");
+      }
+      if (flags.first & MEM_PRIVATE) {
+        report_.write(L" PRIVATE");
+      }
+      report_.write(L" ({})\n", flags.second);
+    }
+  };
+
+  // Create memory buffer.
+  constexpr std::size_t data_size_max = 1024 * 1024 * 1024;
+  std::vector<std::byte> memory;
+  memory.resize(data_size_max);
+
+  // Create signatures.
+#if 0
+  const epos::signature scan_signature("22 AA 2A BA AD B3 97 BA AA AA 80 3E 68 2F 81 3E");
+  const epos::signature mask_signature("22 AA 2A BA AD ?? 97 BA ?? ?? 80 3E 68 2F 81 3E");
+#else
+  const epos::signature scan_signature("11 22 33 44 55 B3 66 77 AA AA FF FE FD FC FB FA");
+  const epos::signature mask_signature("11 22 33 44 55 ?? 66 77 ?? ?? FF FE FD FC FB FA");
+#endif
+
+  while (!stop_.load(std::memory_order_relaxed)) {
+    // Read memory.
+    std::size_t read_size = 0;
+    const interval read_interval;
+    for (const auto& region : *query) {
+      if (region.protect & PAGE_READWRITE && region.type == MEM_PRIVATE) {
+        auto region_size = region.region_size;
+        if (read_size + region_size > data_size_max) {
+          region_size = data_size_max - read_size;
+        }
+        if (!region_size) {
+          break;
+        }
+        device_.read(region.base_address, memory.data() + read_size, region_size);
+        read_size += region_size;
+        if (region_size != region.region_size) {
+          break;
+        }
+      }
+    }
+    const auto read_ms = read_interval.ms();
+
+    // Scan memory.
+    const interval scan_interval;
+    const auto scan_data = scan_signature.scan(memory.data(), memory.data() + read_size);
+    const auto scan_size = static_cast<std::byte*>(scan_data) - memory.data();
+    const auto scan_ms = scan_interval.ms();
+
+    const interval mask_interval;
+    const auto mask_data = mask_signature.scan(memory.data(), memory.data() + read_size);
+    const auto mask_size = static_cast<std::byte*>(mask_data) - memory.data();
+    const auto mask_ms = mask_interval.ms();
+
+    // Write report.
+    report_.write(brushes_.white, L"{} Regions ({:.1f} s)\n", query->size(), query_s);
+    if (image_size) {
+      report_.write(L"Images:  {} MiB\n", image_size / 1024 / 1024);
+    }
+    if (mapped_size) {
+      report_.write(L"Mapped:  {} MiB\n", mapped_size / 1024 / 1024);
+    }
+    if (private_size) {
+      report_.write(L"Private: {} MiB\n", private_size / 1024 / 1024);
+    }
+    if (unknown_size) {
+      report_.write(L"Unknown: {} MiB\n", unknown_size / 1024 / 1024);
+    }
+
+    report_.write(L'\n');
+    report_.write(brushes_.white, L"Allocation Protect ({})\n", region_allocation_protect.size());
+    write_protection(region_allocation_protect);
+
+    report_.write(L'\n');
+    report_.write(brushes_.white, L"Protect ({})\n", region_protect.size());
+    write_protection(region_protect);
+
+    report_.write(L'\n');
+    report_.write(brushes_.white, L"Type ({})\n", region_type.size());
+    write_type(region_type);
+
+    report_.write(L'\n');
+    report_.write(brushes_.white, L"{:010d} Read ({:.1f} ms)\n", read_size, read_ms);
+    report_.write(L"{:010d} Scan ({:.1f} ms)\n", scan_size, scan_ms);
+    report_.write(L"{:010d} Mask ({:.1f} ms)\n", mask_size, mask_ms);
+
+    // Baseline
+    // 180 ms read
+    // 120 ms scan
+    // 710 ms mask
+
+    // Update scene.
+    co_await update(1s);
+  }
   co_return true;
 }
 
