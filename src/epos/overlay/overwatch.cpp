@@ -193,7 +193,7 @@ void overwatch::render() noexcept
   duration_ = clock::now() - tp0;
 }
 
-boost::asio::awaitable<void> overwatch::update(std::chrono::steady_clock::duration wait) noexcept
+boost::asio::awaitable<void> overwatch::update(std::chrono::steady_clock::duration wait, bool reset) noexcept
 {
   // Create status.
   if (status_) {
@@ -222,12 +222,14 @@ boost::asio::awaitable<void> overwatch::update(std::chrono::steady_clock::durati
   // Signal overlay to call render() on another thread.
   overlay::update();
 
-  // Clear scene.
-  scene_work_->status.Reset();
-  scene_work_->report.Reset();
-  scene_work_->labels.clear();
-  status_.reset();
-  report_.reset();
+  // Reset scene.
+  if (reset) {
+    scene_work_->status.Reset();
+    scene_work_->report.Reset();
+    scene_work_->labels.clear();
+    status_.reset();
+    report_.reset();
+  }
 
   // Limit frame rate.
   if (wait > 0ms) {
@@ -320,6 +322,7 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
   if (!query) {
     report_.reset(brushes_.red, "Could not query process.\n");
     report_.write(query.error().message());
+    co_await update(1s);
     co_return false;
   }
   const auto query_s = qiery_interval.s();
@@ -350,7 +353,7 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
     }
   }
 
-  const auto write_protection = [this](const std::map<ULONG, std::size_t>& protection) {
+  const auto report_protection = [this](const std::map<ULONG, std::size_t>& protection) {
     for (const auto flags : protection) {
       report_.write(L"{:08X}", flags.first);
       if (flags.first & PAGE_EXECUTE) {
@@ -405,7 +408,7 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
     }
   };
 
-  const auto write_type = [this](const std::map<ULONG, std::size_t>& type) {
+  const auto report_type = [this](const std::map<ULONG, std::size_t>& type) {
     for (const auto& flags : type) {
       report_.write(L"{:08X}", flags.first);
       if (flags.first & MEM_IMAGE) {
@@ -498,15 +501,15 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
 
     report_.write(L'\n');
     report_.write(brushes_.white, L"Allocation Protect ({})\n", region_allocation_protect.size());
-    write_protection(region_allocation_protect);
+    report_protection(region_allocation_protect);
 
     report_.write(L'\n');
     report_.write(brushes_.white, L"Protect ({})\n", region_protect.size());
-    write_protection(region_protect);
+    report_protection(region_protect);
 
     report_.write(L'\n');
     report_.write(brushes_.white, L"Type ({})\n", region_type.size());
-    write_type(region_type);
+    report_type(region_type);
 
     report_.write(L'\n');
     report_.write(brushes_.white, L"{:010d} Read ({:.1f} ms)\n", read_size, read_ms);

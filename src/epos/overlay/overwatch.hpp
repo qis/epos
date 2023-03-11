@@ -72,7 +72,10 @@ public:
   void render() noexcept override;
 
 private:
-  boost::asio::awaitable<void> update(std::chrono::steady_clock::duration wait = {}) noexcept;
+  boost::asio::awaitable<void> update(
+    std::chrono::steady_clock::duration wait = {},
+    bool reset = false) noexcept;
+
   boost::asio::awaitable<void> run() noexcept;
 
   boost::asio::awaitable<bool> on_open() noexcept;
