@@ -437,6 +437,7 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
 
   while (!stop_.load(std::memory_order_relaxed)) {
     // Read memory.
+    std::size_t partial = 0;
     std::size_t read_size = 0;
     const interval read_interval;
     for (const auto& region : *query) {
@@ -448,7 +449,19 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
         if (!region_size) {
           break;
         }
-        device_.read(region.base_address, memory.data() + read_size, region_size);
+        const auto rv = device_.read(region.base_address, memory.data() + read_size, region_size);
+        if (!rv) {
+          report_.reset(brushes_.red, "Could not read process memory.\n");
+          report_.write(rv.error().message());
+          co_await update(1s);
+          co_return false;
+        }
+        if (!*rv) {
+          co_return true;
+        }
+        if (*rv != region_size) {
+          partial++;
+        }
         read_size += region_size;
         if (region_size != region.region_size) {
           break;
@@ -469,7 +482,7 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
     const auto mask_ms = mask_interval.ms();
 
     // Write report.
-    report_.write(brushes_.white, L"{} Regions ({:.1f} s)\n", query->size(), query_s);
+    report_.reset(brushes_.white, L"{} Regions ({:.1f} s)\n", query->size(), query_s);
     if (image_size) {
       report_.write(L"Images:  {} MiB\n", image_size / 1024 / 1024);
     }
@@ -502,6 +515,10 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
 
     report_.visualize(scan_data, scan_signature.size());
     report_.visualize(mask_data, mask_signature.size());
+
+    if (partial) {
+      report_.write(brushes_.red, L"{} partial reads", partial);
+    }
 
     // 1073741824
     // 290 ms read
