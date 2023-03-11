@@ -503,10 +503,11 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
     report_.visualize(scan_data, scan_signature.size());
     report_.visualize(mask_data, mask_signature.size());
 
-    // Baseline
-    // 180 ms read
-    // 120 ms scan
-    // 710 ms mask
+    // 1073741824
+    // 290 ms read
+    // 190 ms scan
+    //  60 ms scan avx2
+    // 1.2 s  mask
 
     // Update scene.
     co_await update(1s);
