@@ -35,10 +35,7 @@
 namespace epos {
 namespace {
 
-[[maybe_unused]] constexpr bool always_true(const char*, const char*) noexcept
-{
-  return true;
-}
+#ifdef EPOS_USE_AVX2
 
 [[maybe_unused]] constexpr bool memcmp1(const char* a, const char* b) noexcept
 {
@@ -128,22 +125,6 @@ namespace {
   return (a64 == b64) && (a32 == b32);
 }
 
-template <class T>
-constexpr T clear_leftmost_set(const T value) noexcept
-{
-  return value & (value - 1);
-}
-
-template <class T>
-__forceinline unsigned get_first_bit_set(const T value) noexcept
-{
-  if constexpr (sizeof(T) > 4) {
-    return _tzcnt_u64(value);
-  } else {
-    return _tzcnt_u32(value);
-  }
-}
-
 __forceinline std::size_t avx2_strstr_eq2(const char* s, std::size_t n, const char* d) noexcept
 {
   const __m256i broadcasted[2]{
@@ -162,7 +143,7 @@ __forceinline std::size_t avx2_strstr_eq2(const char* s, std::size_t n, const ch
     const auto substring = _mm256_alignr_epi8(next1, curr, 1);
     eq = _mm256_and_si256(eq, _mm256_cmpeq_epi8(substring, broadcasted[1]));
     if (const auto mask = _mm256_movemask_epi8(eq)) {
-      return i + get_first_bit_set(mask);
+      return i + _tzcnt_u32(mask);
     }
 
     curr = next;
@@ -182,11 +163,11 @@ __forceinline std::size_t avx2_strstr_memcmp(const char* s, std::size_t n, const
     const auto e1 = _mm256_cmpeq_epi8(s1, b1);
     auto mask = _mm256_movemask_epi8(_mm256_and_si256(e0, e1));
     while (mask) {
-      const auto bitpos = get_first_bit_set(mask);
+      const auto bitpos = _tzcnt_u32(mask);
       if (memcmp(s + i + bitpos + 1, d + 1)) {
         return i + bitpos;
       }
-      mask = clear_leftmost_set(mask);
+      mask &= mask - 1;
     }
   }
   return n;
@@ -203,15 +184,17 @@ __forceinline std::size_t avx2_strstr_anysize(const char* s, std::size_t n, cons
     const auto e1 = _mm256_cmpeq_epi8(s1, b1);
     auto mask = _mm256_movemask_epi8(_mm256_and_si256(e0, e1));
     while (mask) {
-      const auto bitpos = get_first_bit_set(mask);
+      const auto bitpos = _tzcnt_u32(mask);
       if (std::memcmp(s + i + bitpos + 1, d + 1, k - 2) == 0) {
         return i + bitpos;
       }
-      mask = clear_leftmost_set(mask);
+      mask &= mask - 1;
     }
   }
   return n;
 }
+
+#endif
 
 __forceinline std::size_t search(const char* s, std::size_t n, const char* d, std::size_t k) noexcept
 {
@@ -224,7 +207,7 @@ __forceinline std::size_t search(const char* s, std::size_t n, const char* d, st
   case 0:
     return 0;
   case 1:
-    if (const auto p = std::strchr(s, d[0])) {
+    if (const auto p = std::find(s, s + n, d[0])) {
       return p - s;
     } else {
       return n;
@@ -239,7 +222,6 @@ __forceinline std::size_t search(const char* s, std::size_t n, const char* d, st
     result = avx2_strstr_memcmp<4>(s, n, d, memcmp2);
     break;
   case 5:
-    // Use memcmp4 rather memcmp3, as the last character of d is already proven to be equal.
     result = avx2_strstr_memcmp<5>(s, n, d, memcmp4);
     break;
   case 6:
@@ -252,7 +234,6 @@ __forceinline std::size_t search(const char* s, std::size_t n, const char* d, st
     result = avx2_strstr_memcmp<8>(s, n, d, memcmp6);
     break;
   case 9:
-    // Use memcmp8 rather memcmp7 for the same reason as above.
     result = avx2_strstr_memcmp<9>(s, n, d, memcmp8);
     break;
   case 10:
