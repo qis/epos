@@ -73,7 +73,6 @@ public:
     const auto bytes_begin = reinterpret_cast<const std::byte*>(begin);
     const auto bytes_end = reinterpret_cast<const std::byte*>(end);
     const auto pos = find(bytes_begin, bytes_end, data(), mask(), size());
-    ;
     return reinterpret_cast<const void*>(bytes_begin + pos);
   }
 

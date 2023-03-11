@@ -500,6 +500,9 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
     report_.write(L"{:010d} Scan ({:.1f} ms)\n", scan_size, scan_ms);
     report_.write(L"{:010d} Mask ({:.1f} ms)\n", mask_size, mask_ms);
 
+    report_.visualize(scan_data, scan_signature.size());
+    report_.visualize(mask_data, mask_signature.size());
+
     // Baseline
     // 180 ms read
     // 120 ms scan
