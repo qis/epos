@@ -36,13 +36,13 @@ namespace epos {
 namespace detail {
 
 template <class L>
-inline constexpr std::size_t enum_size = 0;
+constexpr std::size_t enum_size = 0;
 
 template <template <class...> class L, class... T>
-inline constexpr std::size_t enum_size<L<T...>> = sizeof...(T);
+constexpr std::size_t enum_size<L<T...>> = sizeof...(T);
 
 template <class E, template <class... T> class L, class... T>
-inline constexpr std::array<E, sizeof...(T)> enum_as_array(L<T...>) noexcept
+constexpr std::array<E, sizeof...(T)> enum_as_array(L<T...>) noexcept
 {
   return { T::value... };
 }
@@ -55,23 +55,23 @@ struct enum_size {
 };
 
 template <class E>
-inline constexpr std::size_t enum_size_v = enum_size<E>::value;
+constexpr std::size_t enum_size_v = enum_size<E>::value;
 
 template <class E>
-inline constexpr auto enum_as_array() noexcept
+constexpr auto enum_as_array() noexcept
 {
   return detail::enum_as_array<E>(boost::describe::describe_enumerators<E>());
 }
 
 template <class E>
-inline constexpr E enum_entry(std::size_t index) noexcept
+constexpr E enum_entry(std::size_t index) noexcept
 {
   assert(index < enum_size_v<E>);
   return enum_as_array<E>()[index];
 }
 
 template <class E>
-inline constexpr std::size_t enum_index(E entry) noexcept
+constexpr std::size_t enum_index(E entry) noexcept
 {
   const auto ea = enum_as_array<E>();
   const auto it = std::find(ea.begin(), ea.end(), entry);

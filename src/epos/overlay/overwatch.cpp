@@ -333,6 +333,7 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
   std::map<ULONG, std::size_t> region_allocation_protect;
   std::map<ULONG, std::size_t> region_protect;
   std::map<ULONG, std::size_t> region_type;
+  std::map<std::size_t, std::size_t> prws;
   for (const auto& region : *query) {
     ++region_allocation_protect[region.allocation_protect];
     ++region_protect[region.protect];
@@ -351,7 +352,18 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
       unknown_size += region.region_size;
       break;
     }
+    if (region.protect & PAGE_READWRITE && region.type == MEM_PRIVATE) {
+      prws[region.region_size]++;
+    }
   }
+
+  const auto prws_size = prws.size();
+  const auto prws_min = std::min_element(prws.begin(), prws.end(), [](auto lhs, auto rhs) {
+    return lhs.first < rhs.first;
+  });
+  const auto prws_max = std::max_element(prws.begin(), prws.end(), [](auto lhs, auto rhs) {
+    return lhs.first < rhs.first;
+  });
 
   const auto report_protection = [this](const std::map<ULONG, std::size_t>& protection) {
     for (const auto flags : protection) {
@@ -510,6 +522,11 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
     report_.write(L'\n');
     report_.write(brushes_.white, L"Type ({})\n", region_type.size());
     report_type(region_type);
+
+    report_.write(L'\n');
+    report_.write(brushes_.white, L"Size (PRIVATE READ/WRITE {})\n", prws_size);
+    report_.write(L"Min: {} ({})\n", prws_min->first, prws_min->second);
+    report_.write(L"Max: {} ({})\n", prws_max->first, prws_max->second);
 
     report_.write(L'\n');
     report_.write(brushes_.white, L"{:010d} Read ({:.1f} ms)\n", read_size, read_ms);

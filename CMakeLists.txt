@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.23 FATAL_ERROR)
 project(epos DESCRIPTION "EPOS" VERSION 0.1.0 LANGUAGES CXX)
 
-# Conan
+# Third Party
 list(PREPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 list(PREPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
