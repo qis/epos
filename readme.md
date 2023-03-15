@@ -2,27 +2,27 @@
 External cheat engine.
 
 ## Build
-1. Install [Python 3][py3] to `C:\Python`.
-2. Clone this repository to `C:\Workspace\epos`.
+1. Install [Python 3][py].
+2. Install [Conan][conan].
 
 ```cmd
-git clone git@github.com:qis/epos C:/Workspace/epos
-cd C:\Workspace\epos
-git submodule update --init --depth 1
+pip install "conan<2.0.0"
 ```
 
-3. Install dependencies using [Conan][conan].
-
-<!--
-* Set the system environment variable `CONAN_USER_HOME_SHORT` to `None`.
-* Upgrade pip with `python -m pip install --upgrade pip`.
-* Upgrade conan with `pip install conan --upgrade`.
--->
+3. Install [Visual Studio][vs] with C++ and CMake support.
+4. Clone project. Use `x64 Native Tools Command Prompt for VS 2022`.
 
 ```cmd
-cd C:\Workspace\epos
+git clone https://github.com/qis/epos epos
+cd epos
+```
+
+5. Install dependencies.
+
+```cmd
 conan install . -if third_party -pr conan.profile
 ```
 
-[py3]: https://www.python.org/downloads/windows/
+[py]: https://www.python.org/downloads/windows/
+[vs]: https://visualstudio.microsoft.com/vs/
 [conan]: https://conan.io/center/

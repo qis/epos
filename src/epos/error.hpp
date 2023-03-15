@@ -16,9 +16,9 @@ void check(
   const std::source_location location = std::source_location::current());
 
 #ifdef NDEBUG
-#  define HR(result) result
+#define HR(result) result
 #else
-#  define HR(result) check(result)
+#define HR(result) check(result)
 #endif
 
 }  // namespace epos

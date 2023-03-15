@@ -5,22 +5,14 @@ project(epos DESCRIPTION "EPOS" VERSION 0.1.0 LANGUAGES CXX)
 list(PREPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 list(PREPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
+if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/bin)
+  file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/bin/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+endif()
+
 # Dependencies
 find_package(Boost REQUIRED COMPONENTS headers)
 find_package(TBB REQUIRED COMPONENTS tbb)
 find_package(deus REQUIRED)
-
-foreach(dir ${TBB_LIB_DIRS})
-  get_filename_component(dir ${dir} DIRECTORY)
-  foreach(lib ${TBB_LIBRARY_LIST})
-    if(EXISTS ${dir}/bin/${lib}.dll)
-      if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${lib}.dll)
-        file(COPY ${dir}/bin/${lib}.dll DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-      endif()
-      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${lib}.dll DESTINATION bin)
-    endif()
-  endforeach()
-endforeach()
 
 # Executable
 file(GLOB_RECURSE headers src/*.hpp)

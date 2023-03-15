@@ -1,6 +1,9 @@
 [requires]
-boost/[x]
-onetbb/[x]
+boost/[*]
+onetbb/[*]
 
 [generators]
 cmake_find_package
+
+[imports]
+bin, *.dll -> ./bin

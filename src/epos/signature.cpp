@@ -29,7 +29,7 @@
 #include <functional>
 
 #ifdef EPOS_USE_AVX2
-#  include <immintrin.h>
+#include <immintrin.h>
 #endif
 
 namespace epos {
