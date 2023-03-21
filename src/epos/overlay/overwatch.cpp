@@ -1,9 +1,9 @@
 #include "overwatch.hpp"
 #include <epos/error.hpp>
 #include <epos/fonts.hpp>
-#include <epos/signature.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <qis/signature.hpp>
 #include <algorithm>
 #include <functional>
 #include <map>
@@ -443,11 +443,11 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
 
   // Create signatures.
 #if 0
-  const epos::signature scan_signature("22 AA 2A BA AD B3 97 BA AA AA 80 3E 68 2F 81 3E");
-  const epos::signature mask_signature("22 AA 2A BA AD ?? 97 BA ?? ?? 80 3E 68 2F 81 3E");
+  const qis::signature scan_signature("22 AA 2A BA AD B3 97 BA AA AA 80 3E 68 2F 81 3E");
+  const qis::signature mask_signature("22 AA 2A BA AD ?? 97 BA ?? ?? 80 3E 68 2F 81 3E");
 #else
-  const epos::signature scan_signature("11 22 33 44 55 B3 66 77 AA AA FF FE FD FC FB FA");
-  const epos::signature mask_signature("11 22 33 44 55 ?? 66 77 ?? ?? FF FE FD FC FB FA");
+  const qis::signature scan_signature("11 22 33 44 55 B3 66 77 AA AA FF FE FD FC FB FA");
+  const qis::signature mask_signature("11 22 33 44 55 ?? 66 77 ?? ?? FF FE FD FC FB FA");
 #endif
 
   while (!stop_.load(std::memory_order_relaxed)) {
@@ -487,13 +487,11 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
 
     // Scan memory.
     const interval scan_interval;
-    const auto scan_data = scan_signature.scan(memory.data(), memory.data() + read_size);
-    const auto scan_size = static_cast<std::byte*>(scan_data) - memory.data();
+    const auto scan_size = qis::scan(memory.data(), read_size, scan_signature);
     const auto scan_ms = scan_interval.ms();
 
     const interval mask_interval;
-    const auto mask_data = mask_signature.scan(memory.data(), memory.data() + read_size);
-    const auto mask_size = static_cast<std::byte*>(mask_data) - memory.data();
+    const auto mask_size = qis::scan(memory.data(), read_size, mask_signature);
     const auto mask_ms = mask_interval.ms();
 
     // Write report.
@@ -533,8 +531,8 @@ boost::asio::awaitable<bool> overwatch::on_process() noexcept
     report_.write(L"{:010d} Scan ({:.1f} ms)\n", scan_size, scan_ms);
     report_.write(L"{:010d} Mask ({:.1f} ms)\n", mask_size, mask_ms);
 
-    report_.visualize(scan_data, scan_signature.size());
-    report_.visualize(mask_data, mask_signature.size());
+    report_.visualize(memory.data() + scan_size, scan_signature.size());
+    report_.visualize(memory.data() + mask_size, mask_signature.size());
 
     if (partial) {
       report_.write(brushes_.red, L"{} partial reads", partial);

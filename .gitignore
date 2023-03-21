@@ -8,6 +8,7 @@
 !/.clang-tidy
 !/.gitattributes
 !/.gitignore
+!/.gitmodules
 !/CMakeLists.txt
 !/CMakePresets.json
 !/conan.profile

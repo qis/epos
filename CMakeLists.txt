@@ -26,3 +26,6 @@ target_compile_definitions(main PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX DIRECTINPUT
 target_compile_definitions(main PRIVATE EPOS_USE_AVX2)
 target_compile_options(main PRIVATE /arch:AVX2)
 target_include_directories(main PRIVATE src)
+
+add_subdirectory(third_party/signature)
+target_link_libraries(main PRIVATE qis::signature)

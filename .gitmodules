@@ -1,0 +1,3 @@
+[submodule "third_party/signature"]
+	path = third_party/signature
+	url = https://github.com/qis/signature
