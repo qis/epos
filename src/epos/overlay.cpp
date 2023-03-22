@@ -96,7 +96,7 @@ void overlay::start() noexcept
   stop();
   command_.store(command::none);
   thread_ = std::jthread([this]() noexcept {
-    SetThreadDescription(GetCurrentThread(), L"overlay");
+    SetThreadDescription(GetCurrentThread(), L"render");
     run();
   });
 }

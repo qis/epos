@@ -149,6 +149,13 @@ overlay::command view::render() noexcept
   auto scene_done_updated_expected = true;
   if (scene_done_updated_.compare_exchange_weak(scene_done_updated_expected, false)) {
     scene_draw_ = scene_done_.exchange(scene_draw_);
+
+    //if (const auto rv = device_.watch(scene_draw_->watch); !rv) {
+    //  status_.write(brushes_.red, L"Could not start watching memory\n");
+    //  status_.write(brushes_.white, rv.error().message());
+    //  scene_draw_->entities = 0;
+    //  scene_draw_->vm = false;
+    //}
   }
 
   // Clear scene.
@@ -276,6 +283,7 @@ boost::asio::awaitable<void> view::update(std::chrono::steady_clock::duration wa
   // Reset scene.
   scene_work_->status.Reset();
   scene_work_->report.Reset();
+  scene_work_->watch.clear();
   scene_work_->entities = 0;
   scene_work_->vm = false;
   status_.reset();
@@ -357,14 +365,14 @@ boost::asio::awaitable<void> view::run() noexcept
     }
     const deus::copy vm{ vm_base + game::vm_offset, reinterpret_cast<UINT_PTR>(&vm_), sizeof(vm_) };
 
-    // Watch memory.
-    std::vector<deus::copy> watched;
-    std::vector<std::uintptr_t> offsets;
-
+    // Compares signature offset location to watched copy.
     constexpr auto compare = [](std::uintptr_t offset, const deus::copy& copy) noexcept {
       return offset == static_cast<std::uintptr_t>(copy.src + game::entity_signature_offset);
     };
 
+    // Watch memory.
+    std::vector<deus::copy> watch;
+    std::vector<std::uintptr_t> offsets;
     while (!stop_.load(std::memory_order_relaxed)) {
       // Check process.
       DWORD cmp = 0;
@@ -429,30 +437,24 @@ boost::asio::awaitable<void> view::run() noexcept
       report_.reset();
 
       // Check if watched memory changed.
-      auto changed = offsets.size() + 1 != watched.size();
-      if (!changed && std::equal(offsets.begin(), offsets.end(), watched.begin(), compare)) {
+      auto changed = offsets.size() + 1 != watch.size();
+      if (!changed && std::equal(offsets.begin(), offsets.end(), watch.begin(), compare)) {
         scene_work_->entities = entities;
         scene_work_->vm = true;
         co_await update(6s);
         continue;
       }
 
-      // Instruct device to watch memory.
-      watched.clear();
+      // Report success.
+      watch.clear();
       for (std::size_t i = 0; i < entities; i++) {
-        watched.emplace_back(
+        watch.emplace_back(
           offsets[i] - game::entity_signature_offset,
           reinterpret_cast<UINT_PTR>(&entities_[i]),
           sizeof(entities_[i]));
       }
-      watched.push_back(vm);
-
-      if (const auto rv = device_.watch(watched); !rv) {
-        report_.write(brushes_.red, L"Could not start watching memory\n");
-        report_.write(brushes_.white, rv.error().message());
-        break;
-      }
-
+      watch.push_back(vm);
+      scene_work_->watch = watch;
       scene_work_->entities = entities;
       scene_work_->vm = true;
       co_await update(1s);
