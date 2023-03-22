@@ -148,7 +148,6 @@ private:
   struct scene {
     ComPtr<IDWriteTextLayout> status;
     ComPtr<IDWriteTextLayout> report;
-    std::vector<deus::copy> watch;
     std::size_t entities{ 0 };
     bool vm{ false };
   };

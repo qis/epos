@@ -149,16 +149,7 @@ overlay::command view::render() noexcept
   auto scene_done_updated_expected = true;
   if (scene_done_updated_.compare_exchange_weak(scene_done_updated_expected, false)) {
     scene_draw_ = scene_done_.exchange(scene_draw_);
-    status_.reset(L"Watching {} memory blocks.\n", scene_draw_->watch.size());
-    if (!scene_draw_->watch.empty()) {
-      //if (const auto rv = device_.watch(scene_draw_->watch); !rv) {
-      //  status_.write(brushes_.red, L"Could not start watching memory\n");
-      //  status_.write(brushes_.white, rv.error().message());
-      //  scene_draw_->entities = 0;
-      //  scene_draw_->vm = false;
-      //}
-    }
-    status_.write(L"Entities: {}\n", scene_draw_->entities);
+    status_.reset(L"Entities: {}\n", scene_draw_->entities);
     status_.write(L"View Matrix: {}\n", scene_draw_->vm);
   }
 
@@ -287,7 +278,6 @@ boost::asio::awaitable<void> view::update(std::chrono::steady_clock::duration wa
   // Reset scene.
   scene_work_->status.Reset();
   scene_work_->report.Reset();
-  scene_work_->watch.clear();
   scene_work_->entities = 0;
   scene_work_->vm = false;
   status_.reset();
@@ -443,8 +433,9 @@ boost::asio::awaitable<void> view::run() noexcept
       // Check if watched memory changed.
       auto changed = offsets.size() + 1 != watch.size();
       if (!changed && std::equal(offsets.begin(), offsets.end(), watch.begin(), compare)) {
-        timer_.expires_from_now(6s);
-        co_await timer_.async_wait();
+        scene_work_->entities = entities;
+        scene_work_->vm = true;
+        co_await update(6s);
         continue;
       }
 
@@ -454,7 +445,11 @@ boost::asio::awaitable<void> view::run() noexcept
         watch.emplace_back(offsets[i], reinterpret_cast<UINT_PTR>(&entities_[i]), sizeof(entities_[i]));
       }
       watch.push_back(vm);
-      scene_work_->watch = watch;
+      if (const auto rv = device_.watch(watch); !rv) {
+        report_.write(brushes_.red, L"Could not start watching memory\n");
+        report_.write(brushes_.white, rv.error().message());
+        break;
+      }
       scene_work_->entities = entities;
       scene_work_->vm = true;
       co_await update(1s);
