@@ -26,13 +26,19 @@ inline std::optional<DirectX::XMFLOAT2> project(
   int sh) noexcept
 {
   // clang-format off
+#ifdef _XM_NO_INTRINSICS_
+  const auto vx = (vm._11 * v.x) + (vm._21 * v.y) + (vm._31 * v.z + vm._41);
+  const auto vy = (vm._12 * v.x) + (vm._22 * v.y) + (vm._32 * v.z + vm._42);
+  const auto vw = (vm._14 * v.x) + (vm._24 * v.y) + (vm._34 * v.z + vm._44);
+#else
   const auto vx = vm.r[0].m128_f32[0] * v.x + vm.r[1].m128_f32[0] * v.y + vm.r[2].m128_f32[0] * v.z + vm.r[3].m128_f32[0];
   const auto vy = vm.r[0].m128_f32[1] * v.x + vm.r[1].m128_f32[1] * v.y + vm.r[2].m128_f32[1] * v.z + vm.r[3].m128_f32[1];
   const auto vw = vm.r[0].m128_f32[3] * v.x + vm.r[1].m128_f32[3] * v.y + vm.r[2].m128_f32[3] * v.z + vm.r[3].m128_f32[3];
+#endif
+  // clang-format on
   if (vw < 0.0001f) {
     return std::nullopt;
   }
-  // clang-format on
   const auto cx = sw / 2.0f;
   const auto cy = sh / 2.0f;
   const auto sx = cx + cx * vx / vw;
