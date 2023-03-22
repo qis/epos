@@ -149,12 +149,12 @@ overlay::command view::render() noexcept
   auto scene_done_updated_expected = true;
   if (scene_done_updated_.compare_exchange_weak(scene_done_updated_expected, false)) {
     scene_draw_ = scene_done_.exchange(scene_draw_);
-    //if (const auto rv = device_.watch(scene_draw_->watch); !rv) {
-    //  status_.write(brushes_.red, L"Could not start watching memory\n");
-    //  status_.write(brushes_.white, rv.error().message());
-    //  scene_draw_->entities = 0;
-    //  scene_draw_->vm = false;
-    //}
+    if (const auto rv = device_.watch(scene_draw_->watch); !rv) {
+      status_.reset(brushes_.red, L"Could not start watching memory\n");
+      status_.write(brushes_.white, rv.error().message());
+      scene_draw_->entities = 0;
+      scene_draw_->vm = false;
+    }
   }
 
   // Clear scene.
