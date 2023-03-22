@@ -397,15 +397,15 @@ boost::asio::awaitable<void> view::run() noexcept
           break;
         }
         for (std::size_t i = 0; i < *read; i++) {
-          const auto o = qis::scan(memory_.data() + i, *read - i, game::entity_signature);
-          if (o == qis::npos) {
+          const auto pos = qis::scan(memory_.data() + i, *read - i, game::entity_signature);
+          if (pos == qis::npos) {
             break;
           }
-          if (o < region.base_address + game::entity_signature_offset) {
-            continue;
+          const auto offset = region.base_address + i + pos;
+          if (offset >= region.base_address + game::entity_signature_offset) {
+            offsets.push_back(offset);
           }
-          offsets.push_back(region.base_address + i + o);
-          i += o;
+          i += pos;
         }
       }
       report_.write(L"Offsets: ");
