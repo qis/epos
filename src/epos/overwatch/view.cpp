@@ -149,8 +149,6 @@ overlay::command view::render() noexcept
   auto scene_done_updated_expected = true;
   if (scene_done_updated_.compare_exchange_weak(scene_done_updated_expected, false)) {
     scene_draw_ = scene_done_.exchange(scene_draw_);
-    status_.reset(L"Entities: {}\n", scene_draw_->entities);
-    status_.write(L"View Matrix: {}\n", scene_draw_->vm);
   }
 
   // Clear scene.
@@ -192,12 +190,30 @@ overlay::command view::render() noexcept
 
   // Draw entities.
   for (std::size_t i = 0; i < scene_draw_->entities; i++) {
-    if (const auto entity = game::project(vm_, entities_[i], sw, sh)) {
+    auto head = entities_[i].head;
+    head.x += 0.5f;
+    head.y += 0.6f;
+    head.z += 0.5f;
+    if (const auto entity = game::project(vm_, head, sw, sh)) {
       const auto x = sx + entity->x - mouse.x;
       const auto y = sy + entity->y - mouse.y;
       const auto r = 5.0f;
       const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
-      dc_->FillEllipse(e, brushes_.red.Get());
+      if (entities_[i]) {
+        switch (entities_[i].team) {
+        case game::team::one:
+          dc_->FillEllipse(e, brushes_.red.Get());
+          break;
+        case game::team::two:
+          dc_->FillEllipse(e, brushes_.green.Get());
+          break;
+        default:
+          dc_->FillEllipse(e, brushes_.blue.Get());
+          break;
+        }
+      } else {
+        dc_->FillEllipse(e, brushes_.gray.Get());
+      }
       dc_->DrawEllipse(e, brushes_.black.Get());
     }
   }
@@ -404,8 +420,8 @@ boost::asio::awaitable<void> view::run() noexcept
             break;
           }
           const auto signature = region.base_address + i + pos;
-          if (signature >= region.base_address + game::entity_signature_offset) {
-            offsets.push_back(signature - game::entity_signature_offset);
+          if (signature >= region.base_address + sizeof(game::entity)) {
+            offsets.push_back(signature - sizeof(game::entity));
           }
           i += pos;
         }

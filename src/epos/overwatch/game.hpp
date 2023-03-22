@@ -14,8 +14,31 @@ constexpr std::intptr_t vm_offset{ 0x7E0 };
 
 constexpr std::intptr_t entity_region_size{ 0x180000 };
 constexpr std::intptr_t entity_signature_size{ 31 };
-constexpr std::intptr_t entity_signature_offset{ 0x9C };
 constexpr std::intptr_t entities = 255;
+
+#pragma pack(push, 1)
+
+enum class team : BYTE {
+  one = 0x08,
+  two = 0x10,
+};
+
+struct alignas(1) entity {
+  DirectX::XMFLOAT3 head{};
+  std::array<std::byte, 139> unknown0{};
+  team team{ 0 };
+  std::array<std::byte, 3> unknown1{};
+  BYTE live{ 0 };
+
+  constexpr operator bool() const noexcept
+  {
+    return live == 0x14;
+  }
+};
+
+static_assert(sizeof(entity) == 0x9C);
+
+#pragma pack(pop)
 
 inline const auto entity_signature = []() noexcept {
   qis::signature signature{
