@@ -181,13 +181,9 @@ overlay::command view::render() noexcept
 
   // Draw entities.
   for (std::size_t i = 0; i < scene_draw_->entities; i++) {
-    auto head = entities_[i].head;
-    head.x += 0.5f;
-    head.y += 0.6f;
-    head.z += 0.5f;
-    if (const auto entity = game::project(vm_, head, sw, sh)) {
-      const auto x = sx + entity->x - mouse.x;
-      const auto y = sy + entity->y - mouse.y;
+    if (const auto torso = game::project(vm_, entities_[i].torso(), sw, sh)) {
+      const auto x = sx + torso->x - mouse.x;
+      const auto y = sy + torso->y - mouse.y;
       const auto r = 5.0f;
       const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
       if (entities_[i]) {
@@ -218,17 +214,10 @@ overlay::command view::render() noexcept
     const auto y = sy + origin->y - mouse.y;
     const auto r = 8.0f;
     const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
-    dc_->FillEllipse(e, brushes_.green.Get());
+    dc_->FillEllipse(e, brushes_.white.Get());
     dc_->DrawEllipse(e, brushes_.black.Get());
-
-    auto& label = scene_labels_.emplace_back();
     string_.reset(L"ORIGIN");
-    string_.create(factory_, formats_.label, 128, 32, &label.layout);
-    DWRITE_TEXT_METRICS tm{};
-    label.layout->GetMetrics(&tm);
-    label.x = x - tm.width / 2;
-    label.y = y - tm.height - 12;
-    label.brush = brushes_.white;
+    string_label(x, y - 20, 64, 32, formats_.label, brushes_.white);
   }
 
   // Draw labels.

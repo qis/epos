@@ -16,6 +16,8 @@ constexpr std::intptr_t entity_region_size{ 0x180000 };
 constexpr std::intptr_t entity_signature_size{ 31 };
 constexpr std::intptr_t entities = 255;
 
+using namespace DirectX;
+
 #pragma pack(push, 1)
 
 enum class team : BYTE {
@@ -24,11 +26,16 @@ enum class team : BYTE {
 };
 
 struct alignas(1) entity {
-  DirectX::XMFLOAT3 head{};
+  XMFLOAT3 base{};
   std::array<std::byte, 140> unknown0{};
   team team{ 0 };
   std::array<std::byte, 2> unknown1{};
   BYTE live{ 0 };
+
+  constexpr XMFLOAT3 torso() const noexcept
+  {
+    return { base.x + 0.5f, base.y + 0.6f, base.z + 0.5f };
+  }
 
   constexpr operator bool() const noexcept
   {
@@ -36,7 +43,7 @@ struct alignas(1) entity {
   }
 };
 
-static_assert(sizeof(entity) == 0x9C);
+static_assert(sizeof(entity) == 0x9C, "entity to signature offset mismatch");
 
 #pragma pack(pop)
 
@@ -48,11 +55,7 @@ inline const auto entity_signature = []() noexcept {
   return signature;
 }();
 
-inline std::optional<DirectX::XMFLOAT2> project(
-  const DirectX::XMMATRIX& vm,
-  const DirectX::XMFLOAT3& v,
-  int sw,
-  int sh) noexcept
+inline std::optional<XMFLOAT2> project(const XMMATRIX& vm, const XMFLOAT3& v, int sw, int sh) noexcept
 {
   // clang-format off
 #ifdef _XM_NO_INTRINSICS_
@@ -75,7 +78,7 @@ inline std::optional<DirectX::XMFLOAT2> project(
   if (sx < 0 || sy < 0 || sx >= sw || sy >= sh) {
     return std::nullopt;
   }
-  return DirectX::XMFLOAT2{ sx, sy };
+  return XMFLOAT2{ sx, sy };
 }
 
 }  // namespace epos::overwatch::game
