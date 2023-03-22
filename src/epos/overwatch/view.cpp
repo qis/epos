@@ -149,7 +149,6 @@ overlay::command view::render() noexcept
   auto scene_done_updated_expected = true;
   if (scene_done_updated_.compare_exchange_weak(scene_done_updated_expected, false)) {
     scene_draw_ = scene_done_.exchange(scene_draw_);
-
     //if (const auto rv = device_.watch(scene_draw_->watch); !rv) {
     //  status_.write(brushes_.red, L"Could not start watching memory\n");
     //  status_.write(brushes_.white, rv.error().message());
@@ -197,9 +196,9 @@ overlay::command view::render() noexcept
 
   // Draw entities.
   for (std::size_t i = 0; i < scene_draw_->entities; i++) {
-    if (const auto head = game::project(vm_, entities_[i].head, sw, sh)) {
-      const auto x = sx + head->x - mouse.x;
-      const auto y = sy + head->y - mouse.y;
+    if (const auto entity = game::project(vm_, entities_[i], sw, sh)) {
+      const auto x = sx + entity->x - mouse.x;
+      const auto y = sy + entity->y - mouse.y;
       const auto r = 5.0f;
       const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
       dc_->FillEllipse(e, brushes_.red.Get());
@@ -367,7 +366,7 @@ boost::asio::awaitable<void> view::run() noexcept
 
     // Compares signature offset location to watched copy.
     constexpr auto compare = [](std::uintptr_t offset, const deus::copy& copy) noexcept {
-      return offset == static_cast<std::uintptr_t>(copy.src + game::entity_signature_offset);
+      return offset == copy.src;
     };
 
     // Watch memory.
@@ -409,9 +408,9 @@ boost::asio::awaitable<void> view::run() noexcept
           if (pos == qis::npos) {
             break;
           }
-          const auto offset = region.base_address + i + pos;
-          if (offset >= region.base_address + game::entity_signature_offset) {
-            offsets.push_back(offset);
+          const auto signature = region.base_address + i + pos;
+          if (signature >= region.base_address + game::entity_signature_offset) {
+            offsets.push_back(signature - game::entity_signature_offset);
           }
           i += pos;
         }
@@ -448,10 +447,7 @@ boost::asio::awaitable<void> view::run() noexcept
       // Report success.
       watch.clear();
       for (std::size_t i = 0; i < entities; i++) {
-        watch.emplace_back(
-          offsets[i] - game::entity_signature_offset,
-          reinterpret_cast<UINT_PTR>(&entities_[i]),
-          sizeof(entities_[i]));
+        watch.emplace_back(offsets[i], reinterpret_cast<UINT_PTR>(&entities_[i]), sizeof(entities_[i]));
       }
       watch.push_back(vm);
       scene_work_->watch = watch;

@@ -25,12 +25,6 @@ inline const auto entity_signature = []() noexcept {
   return signature;
 }();
 
-struct entity {
-  DirectX::XMFLOAT3 head{};
-  std::array<std::byte, entity_signature_offset - sizeof(head)> unused0{};
-  std::array<std::byte, entity_signature_size> signature{};
-};
-
 inline std::optional<DirectX::XMFLOAT2> project(
   const DirectX::XMMATRIX& vm,
   const DirectX::XMFLOAT3& v,

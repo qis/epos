@@ -169,7 +169,7 @@ private:
 
   deus::device device_;
   std::vector<std::byte> memory_{ game::entity_region_size };
-  std::array<game::entity, game::entities> entities_;
+  std::array<DirectX::XMFLOAT3, game::entities> entities_;
   DirectX::XMMATRIX vm_{};
 
   std::atomic_bool stop_{ false };
