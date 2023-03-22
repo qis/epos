@@ -244,6 +244,7 @@ boost::asio::awaitable<input::state> input::reset() noexcept
 boost::asio::awaitable<void> input::run() noexcept
 {
   const auto executor = co_await boost::asio::this_coro::executor;
+  SetThreadDescription(GetCurrentThread(), L"input");
   timer update_timer{ executor };
   while (true) {
     update();

@@ -4,20 +4,32 @@
 #include <d3d11.h>
 #include <d3d9types.h>
 #include <optional>
+#include <cassert>
 #include <cstddef>
 
-namespace epos::overwatch {
-namespace settings {
+namespace epos::overwatch::game {
 
-inline const qis::signature signature{
-  "?? ?? 00 00 ?? ?? 00 00 ?? 00 00 00 ?? 00 00 00 00 00 FF FF 02 00 01 00 00 00 00 00 ?? ?? ??"
+constexpr std::intptr_t vm{ 0x4172EA8 };
+constexpr std::intptr_t vm_offset{ 0x7E0 };
+
+constexpr std::intptr_t entity_region_size{ 0x180000 };
+constexpr std::intptr_t entity_signature_size{ 31 };
+constexpr std::intptr_t entity_signature_offset{ 0x9C };
+constexpr std::intptr_t entities = 255;
+
+inline const auto entity_signature = []() noexcept {
+  qis::signature signature{
+    "?? ?? 00 00 ?? ?? 00 00 ?? 00 00 00 ?? 00 00 00 00 00 FF FF 02 00 01 00 00 00 00 00 ?? ?? ??"
+  };
+  assert(signature.size() == static_cast<std::size_t>(entity_signature_size));
+  return signature;
+}();
+
+struct entity {
+  DirectX::XMFLOAT3 head{};
+  std::array<std::byte, entity_signature_offset - sizeof(head)> unused0{};
+  std::array<std::byte, entity_signature_size> signature{};
 };
-
-constexpr std::size_t region_size = 0x180000;
-constexpr std::uintptr_t view_matrix_base = 0x4172EA8;
-constexpr std::uintptr_t view_matrix = 0x7E0;
-
-}  // namespace settings
 
 inline std::optional<DirectX::XMFLOAT2> project(
   const DirectX::XMMATRIX& vm,
@@ -49,4 +61,4 @@ inline std::optional<DirectX::XMFLOAT2> project(
   return DirectX::XMFLOAT2{ sx, sy };
 }
 
-}  // namespace epos::overwatch
+}  // namespace epos::overwatch::game

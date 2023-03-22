@@ -148,7 +148,8 @@ private:
   struct scene {
     ComPtr<IDWriteTextLayout> status;
     ComPtr<IDWriteTextLayout> report;
-    bool ready{ false };
+    std::size_t entities{ 0 };
+    bool vm{ false };
   };
 
   std::array<scene, 3> scenes_{};
@@ -166,9 +167,8 @@ private:
   clock::duration swap_duration_{};
 
   deus::device device_;
-  std::vector<std::byte> memory_;
-
-  std::array<deus::copy, 1> watch_;
+  std::vector<std::byte> memory_{ game::entity_region_size };
+  std::array<game::entity, game::entities> entities_;
   DirectX::XMMATRIX vm_{};
 
   std::atomic_bool stop_{ false };

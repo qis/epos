@@ -119,10 +119,6 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
 
   create_label(L"ORIGIN", 128, 32, &labels_.origin);
 
-  // Initialize watch data.
-  watch_[0].dst = reinterpret_cast<UINT_PTR>(&vm_);
-  watch_[0].size = sizeof(vm_);
-
   // Create device.
   if (const auto rv = device_.create(); !rv) {
     throw std::system_error(rv.error(), "create");
@@ -131,6 +127,7 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   // Start thread.
   boost::asio::co_spawn(context_, run(), boost::asio::detached);
   thread_ = std::jthread([this]() noexcept {
+    SetThreadDescription(GetCurrentThread(), L"view");
     boost::system::error_code ec;
     context_.run(ec);
   });
@@ -187,17 +184,29 @@ overlay::command view::render() noexcept
   scene_labels_.clear();
 
   // Update memory.
-  if (!scene_draw_->ready || !device_.update()) {
+  if (!scene_draw_->vm || !device_.update()) {
     return command::none;
   }
 
+  // Draw entities.
+  for (std::size_t i = 0; i < scene_draw_->entities; i++) {
+    if (const auto head = game::project(vm_, entities_[i].head, sw, sh)) {
+      const auto x = sx + head->x - mouse.x;
+      const auto y = sy + head->y - mouse.y;
+      const auto r = 5.0f;
+      const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
+      dc_->FillEllipse(e, brushes_.red.Get());
+      dc_->DrawEllipse(e, brushes_.black.Get());
+    }
+  }
+
   // Draw origin.
-  if (const auto origin = project(vm_, {}, sw, sh)) {
+  if (const auto origin = game::project(vm_, {}, sw, sh)) {
     const auto x = sx + origin->x - mouse.x;
     const auto y = sy + origin->y - mouse.y;
     const auto r = 8.0f;
     const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
-    dc_->FillEllipse(e, brushes_.red.Get());
+    dc_->FillEllipse(e, brushes_.green.Get());
     dc_->DrawEllipse(e, brushes_.black.Get());
 
     DWRITE_TEXT_METRICS tm{};
@@ -267,7 +276,8 @@ boost::asio::awaitable<void> view::update(std::chrono::steady_clock::duration wa
   // Reset scene.
   scene_work_->status.Reset();
   scene_work_->report.Reset();
-  scene_work_->ready = false;
+  scene_work_->entities = 0;
+  scene_work_->vm = false;
   status_.reset();
   report_.reset();
 
@@ -285,6 +295,8 @@ boost::asio::awaitable<void> view::run() noexcept
     if (first) {
       first = false;
     } else {
+      scene_work_->entities = 0;
+      scene_work_->vm = false;
       co_await update(5s);
       device_.close();
     }
@@ -332,28 +344,43 @@ boost::asio::awaitable<void> view::run() noexcept
 
     // Get view matrix.
     report_.write(L"VMatrix: ");
-    std::uint64_t view_matrix = 0;
-    if (const auto rv = device_.read(game->base + settings::view_matrix_base, view_matrix); !rv) {
+    std::uintptr_t vm_base = 0;
+    if (const auto rv = device_.read(game->base + game::vm, vm_base); !rv) {
       report_.write(brushes_.red, L"ERROR\n");
       report_.write(brushes_.white, rv.error().message());
-      goto restart;
+      continue;
     }
-    if (!view_matrix) {
+    if (!vm_base) {
       report_.write(brushes_.red, L"0\n");
     } else {
-      report_.write(L"{:X}\n", view_matrix);
+      report_.write(L"{:X}\n", vm_base);
     }
-    view_matrix += settings::view_matrix;
+    const deus::copy vm{ vm_base + game::vm_offset, reinterpret_cast<UINT_PTR>(&vm_), sizeof(vm_) };
+
+    // Watch memory.
+    std::vector<deus::copy> watched;
+    std::vector<std::uintptr_t> offsets;
+
+    constexpr auto compare = [](std::uintptr_t offset, const deus::copy& copy) noexcept {
+      return offset == static_cast<std::uintptr_t>(copy.src + game::entity_signature_offset);
+    };
 
     while (!stop_.load(std::memory_order_relaxed)) {
+      // Check process.
+      DWORD cmp = 0;
+      GetWindowThreadProcessId(hwnd, &cmp);
+      if (cmp != pid) {
+        break;
+      }
+
       // Get regions.
       report_.write(L"Regions: ");
-      const auto region_size = settings::region_size;
+      const auto region_size = game::entity_region_size;
       const auto regions = device_.regions(MEM_PRIVATE, PAGE_READWRITE, PAGE_READWRITE, region_size);
       if (!regions) {
         report_.write(brushes_.red, L"ERROR\n");
         report_.write(brushes_.white, regions.error().message());
-        goto restart;
+        break;
       }
       report_.write(L"{}\n", regions->size());
       if (regions->empty()) {
@@ -361,9 +388,8 @@ boost::asio::awaitable<void> view::run() noexcept
       }
 
       // Get offsets.
+      offsets.clear();
       std::error_code ec;
-      memory_.resize(region_size);
-      std::vector<std::uintptr_t> offsets;
       for (const auto& region : *regions) {
         const auto read = device_.read(region.base_address, memory_.data(), region_size);
         if (!read) {
@@ -371,9 +397,12 @@ boost::asio::awaitable<void> view::run() noexcept
           break;
         }
         for (std::size_t i = 0; i < *read; i++) {
-          const auto o = qis::scan(memory_.data() + i, *read - i, settings::signature);
+          const auto o = qis::scan(memory_.data() + i, *read - i, game::entity_signature);
           if (o == qis::npos) {
             break;
+          }
+          if (o < region.base_address + game::entity_signature_offset) {
+            continue;
           }
           offsets.push_back(region.base_address + i + o);
           i += o;
@@ -390,34 +419,44 @@ boost::asio::awaitable<void> view::run() noexcept
         break;
       }
 
-      // Scan memory.
-      // TODO
+      // Sort offsets.
+      std::sort(offsets.begin(), offsets.end());
+
+      // Limit number of entities.
+      const auto entities = std::max(offsets.size(), entities_.size());
 
       // Reset report.
       report_.reset();
 
-      // Start watching memory.
-      auto changed = false;
-      changed |= std::exchange(watch_[0].src, view_matrix) != view_matrix;
-      if (changed) {
-        if (const auto rv = device_.watch(watch_); !rv) {
-          report_.write(brushes_.red, L"Could not start watching memory\n");
-          report_.write(brushes_.white, rv.error().message());
-          goto restart;
-        }
+      // Check if watched memory changed.
+      auto changed = offsets.size() + 1 != watched.size();
+      if (!changed && std::equal(offsets.begin(), offsets.end(), watched.begin(), compare)) {
+        scene_work_->entities = entities;
+        scene_work_->vm = true;
+        co_await update(6s);
+        continue;
       }
-      scene_work_->ready = true;
-      co_await update(10s);
 
-      // Check process.
-      DWORD cmp = 0;
-      GetWindowThreadProcessId(hwnd, &cmp);
-      if (cmp != pid) {
-        goto restart;
+      // Instruct device to watch memory.
+      watched.clear();
+      for (std::size_t i = 0; i < entities; i++) {
+        watched.emplace_back(
+          offsets[i] - game::entity_signature_offset,
+          reinterpret_cast<UINT_PTR>(&entities_[i]),
+          sizeof(entities_[i]));
       }
+      watched.push_back(vm);
+
+      if (const auto rv = device_.watch(watched); !rv) {
+        report_.write(brushes_.red, L"Could not start watching memory\n");
+        report_.write(brushes_.white, rv.error().message());
+        break;
+      }
+
+      scene_work_->entities = entities;
+      scene_work_->vm = true;
+      co_await update(1s);
     }
-  restart:
-    scene_work_->ready = false;
   }
   co_return;
 }
