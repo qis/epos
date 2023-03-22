@@ -221,7 +221,12 @@ public:
     }
   }
 
-  void create(auto& factory, ComPtr<IDWriteTextFormat>& format, FLOAT cx, FLOAT cy, IDWriteTextLayout** layout)
+  void create(
+    auto& factory,
+    const ComPtr<IDWriteTextFormat>& format,
+    FLOAT cx,
+    FLOAT cy,
+    IDWriteTextLayout** layout) const
   {
     if (!string_.empty()) {
       const auto data = string_.data();

@@ -25,9 +25,9 @@ enum class team : BYTE {
 
 struct alignas(1) entity {
   DirectX::XMFLOAT3 head{};
-  std::array<std::byte, 139> unknown0{};
+  std::array<std::byte, 140> unknown0{};
   team team{ 0 };
-  std::array<std::byte, 3> unknown1{};
+  std::array<std::byte, 2> unknown1{};
   BYTE live{ 0 };
 
   constexpr operator bool() const noexcept

@@ -133,14 +133,11 @@ private:
     ComPtr<IDWriteTextFormat> report;
   } formats_;
 
-  struct labels {
-    ComPtr<IDWriteTextLayout> origin;
-  } labels_;
-
   struct label {
     FLOAT x{};
     FLOAT y{};
     ComPtr<IDWriteTextLayout> layout;
+    ComPtr<ID2D1SolidColorBrush> brush;
   };
 
   std::wstring info_;
@@ -161,6 +158,25 @@ private:
 
   text status_;
   text report_;
+  text string_;
+
+  label& string_label(
+    FLOAT x,
+    FLOAT y,
+    FLOAT w,
+    FLOAT h,
+    const ComPtr<IDWriteTextFormat>& format,
+    const ComPtr<ID2D1SolidColorBrush>& brush)
+  {
+    auto& label = scene_labels_.emplace_back(x, y, ComPtr<IDWriteTextLayout>{}, brush);
+    string_.create(factory_, format, w, h, &label.layout);
+    DWRITE_TEXT_METRICS tm{};
+    if (SUCCEEDED(label.layout->GetMetrics(&tm))) {
+      label.x -= tm.width / 2;
+      label.y -= tm.height / 2;
+    }
+    return label;
+  }
 
   clock::time_point draw_{ clock::now() };
   clock::time_point swap_{ clock::now() };

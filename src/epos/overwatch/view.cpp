@@ -110,15 +110,6 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   create_format(L"Roboto Mono", 12.0f, FALSE, &formats_.report);
   formats_.status->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
 
-  // Create labels.
-  const auto create_label = [this](LPCWSTR label, FLOAT cx, FLOAT cy, IDWriteTextLayout** layout) {
-    text text;
-    text.reset(label);
-    text.create(factory_, formats_.label, cx, cy, layout);
-  };
-
-  create_label(L"ORIGIN", 128, 32, &labels_.origin);
-
   // Create device.
   if (const auto rv = device_.create(); !rv) {
     throw std::system_error(rv.error(), "create");
@@ -202,19 +193,22 @@ overlay::command view::render() noexcept
       if (entities_[i]) {
         switch (entities_[i].team) {
         case game::team::one:
-          dc_->FillEllipse(e, brushes_.red.Get());
+          dc_->FillEllipse(e, brushes_.green.Get());
+          dc_->DrawEllipse(e, brushes_.black.Get());
           break;
         case game::team::two:
-          dc_->FillEllipse(e, brushes_.green.Get());
+          dc_->FillEllipse(e, brushes_.red.Get());
+          dc_->DrawEllipse(e, brushes_.black.Get());
           break;
         default:
-          dc_->FillEllipse(e, brushes_.blue.Get());
+          string_.reset(L"{:02X}", static_cast<BYTE>(entities_[i].team));
+          string_label(x, y, 32, 32, formats_.debug, brushes_.blue);
           break;
         }
       } else {
         dc_->FillEllipse(e, brushes_.gray.Get());
+        dc_->DrawEllipse(e, brushes_.black.Get());
       }
-      dc_->DrawEllipse(e, brushes_.black.Get());
     }
   }
 
@@ -227,10 +221,14 @@ overlay::command view::render() noexcept
     dc_->FillEllipse(e, brushes_.green.Get());
     dc_->DrawEllipse(e, brushes_.black.Get());
 
+    auto& label = scene_labels_.emplace_back();
+    string_.reset(L"ORIGIN");
+    string_.create(factory_, formats_.label, 128, 32, &label.layout);
     DWRITE_TEXT_METRICS tm{};
-    if (SUCCEEDED(labels_.origin->GetMetrics(&tm))) {
-      scene_labels_.emplace_back(x - tm.width / 2, y - tm.height - 12, labels_.origin);
-    }
+    label.layout->GetMetrics(&tm);
+    label.x = x - tm.width / 2;
+    label.y = y - tm.height - 12;
+    label.brush = brushes_.white;
   }
 
   // Draw labels.
@@ -238,12 +236,16 @@ overlay::command view::render() noexcept
     outline_dc_->BeginDraw();
     outline_dc_->Clear();
     for (const auto& label : scene_labels_) {
-      draw(outline_dc_, { label.x, label.y }, label.layout, brushes_.black);
+      if (label.layout && brushes_.black) {
+        draw(outline_dc_, { label.x, label.y }, label.layout, brushes_.black);
+      }
     }
     outline_dc_->EndDraw();
     dc_->DrawImage(outline_dilate_.Get(), D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR);
     for (const auto& label : scene_labels_) {
-      draw(dc_, { label.x, label.y }, label.layout, brushes_.white);
+      if (label.layout && brushes_.black) {
+        draw(dc_, { label.x, label.y }, label.layout, label.brush);
+      }
     }
   }
 
