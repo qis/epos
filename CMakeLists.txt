@@ -23,7 +23,7 @@ set_target_properties(main PROPERTIES OUTPUT_NAME epos)
 target_link_libraries(main PRIVATE Boost::headers TBB::tbb deus::deus)
 target_link_libraries(main PRIVATE comctl32 d2d1 d3d11 dcomp dinput8 dwrite dxgi dxguid)
 target_compile_definitions(main PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX DIRECTINPUT_VERSION=0x0800)
-target_compile_definitions(main PRIVATE EPOS_USE_AVX2)
+target_compile_definitions(main PRIVATE QIS_SIGNATURE_USE_TBB=0)
 target_compile_options(main PRIVATE /arch:AVX2)
 target_include_directories(main PRIVATE src)
 

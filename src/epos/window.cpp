@@ -1,6 +1,6 @@
 #include "window.hpp"
 #include <epos/error.hpp>
-#include <epos/overlay/overwatch.hpp>
+#include <epos/overwatch/view.hpp>
 #include <commctrl.h>
 
 namespace epos {
@@ -100,7 +100,7 @@ void window::on_create()
   SetWindowPos(hwnd_, nullptr, rc.left, rc.top, cx, cy, SWP_NOACTIVATE);
 
   // Create overlay.
-  overlay_ = std::make_unique<overwatch>(instance_, hwnd_, cx, cy);
+  overlay_ = std::make_unique<overwatch::view>(instance_, hwnd_, cx, cy);
   overlay_->start();
 
   // Show window.

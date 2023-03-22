@@ -134,6 +134,7 @@ public:
   ~input();
 
   boost::asio::awaitable<state> get() noexcept;
+  state get_sync() noexcept;
 
   void mask(
     button button,

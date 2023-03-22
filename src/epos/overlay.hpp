@@ -11,6 +11,12 @@ namespace epos {
 
 class overlay {
 public:
+  enum class command {
+    none = 0,
+    update,
+    stop,
+  };
+
   overlay(HINSTANCE instance, HWND hwnd, long cx, long cy);
 
   overlay(overlay&& other) = delete;
@@ -34,7 +40,8 @@ public:
 protected:
   ComPtr<ID2D1DeviceContext> dc_;
 
-  virtual void render() noexcept = 0;
+  virtual command render() noexcept = 0;
+  virtual void presented() noexcept = 0;
 
 private:
   void run() noexcept;
@@ -45,12 +52,6 @@ private:
   ComPtr<IDCompositionDevice> composition_device_;
   ComPtr<IDCompositionTarget> composition_target_;
   ComPtr<IDCompositionVisual> composition_visual_;
-
-  enum class command {
-    none = 0,
-    update,
-    stop,
-  };
 
   std::atomic<command> command_{ command::none };
   std::condition_variable cv_;

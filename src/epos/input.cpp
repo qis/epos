@@ -2,6 +2,7 @@
 #include <epos/error.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/use_future.hpp>
 #include <algorithm>
 
 namespace epos {
@@ -77,6 +78,11 @@ input::~input()
 boost::asio::awaitable<input::state> input::get() noexcept
 {
   return boost::asio::co_spawn(context_, reset(), boost::asio::use_awaitable);
+}
+
+input::state input::get_sync() noexcept
+{
+  return boost::asio::co_spawn(context_, reset(), boost::asio::use_future).get();
 }
 
 void input::mask(

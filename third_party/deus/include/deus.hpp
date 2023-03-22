@@ -127,9 +127,19 @@ public:
       return *operator->();
     }
 
+    constexpr const reference operator*() const noexcept
+    {
+      return *operator->();
+    }
+
     constexpr pointer operator->() noexcept
     {
-      return static_cast<T*>(entry_);
+      return static_cast<pointer>(entry_);
+    }
+
+    constexpr const pointer operator->() const noexcept
+    {
+      return static_cast<const pointer>(entry_);
     }
 
   private:
@@ -183,6 +193,11 @@ public:
   constexpr iterator end() const noexcept
   {
     return {};
+  }
+
+  bool empty() const noexcept
+  {
+    return begin() == end();
   }
 
   std::size_t size() const noexcept
@@ -249,8 +264,8 @@ public:
     if (handle_ == INVALID_HANDLE_VALUE) {
       return std::unexpected(error(static_cast<NTSTATUS>(GetLastError())));
     }
-    auto v = version;
-    if (const auto rv = control(code::version, &v, sizeof(v)); !rv) {
+    auto data = version;
+    if (const auto rv = control(code::version, &data, sizeof(data)); !rv) {
       CloseHandle(std::exchange(handle_, INVALID_HANDLE_VALUE));
       return std::unexpected(rv.error());
     }
@@ -284,31 +299,67 @@ public:
     return {};
   }
 
-  result<list<region>> query() noexcept
+  result<list<module>> modules() noexcept
   {
-    list<region> regions;
-    if (const auto rv = control(code::query, regions.header(), sizeof(*regions.header())); !rv) {
+    list<module> list;
+    if (const auto rv = control(code::modules, list.header(), sizeof(*list.header())); !rv) {
       return std::unexpected(rv.error());
     }
-    return regions;
+    return list;
+  }
+
+  result<list<region>> regions(
+    ULONG type = 0xFFFFFFFF,
+    ULONG protect = 0xFFFFFFFF,
+    ULONG allocation_protect = 0xFFFFFFFF,
+    SIZE_T region_size = 0) noexcept
+  {
+    list<region> list;
+    deus::regions data{ type, protect, allocation_protect, region_size, list.header() };
+    if (const auto rv = control(code::regions, &data, sizeof(data)); !rv) {
+      return std::unexpected(rv.error());
+    }
+    return list;
   }
 
   result<SIZE_T> read(UINT_PTR src, void* dst, SIZE_T size) noexcept
   {
-    copy copy{ src, reinterpret_cast<UINT_PTR>(dst), size, 0 };
-    if (const auto rv = control(code::read, &copy, sizeof(copy)); !rv) {
+    deus::copy data{ src, reinterpret_cast<UINT_PTR>(dst), size, 0 };
+    if (const auto rv = control(code::read, &data, sizeof(data)); !rv) {
       return std::unexpected(rv.error());
     }
-    return copy.copied;
+    return data.copied;
+  }
+
+  template <typename T>
+  result<void> read(UINT_PTR src, T& dst) noexcept
+  {
+    if (const auto rv = read(src, &dst, sizeof(dst)); !rv) {
+      return std::unexpected(rv.error());
+    } else if (*rv != sizeof(dst)) {
+      return std::unexpected(error(ERROR_PARTIAL_COPY));
+    }
+    return {};
   }
 
   result<SIZE_T> write(const void* src, UINT_PTR dst, SIZE_T size) noexcept
   {
-    copy copy{ reinterpret_cast<UINT_PTR>(src), dst, size, 0 };
-    if (const auto rv = control(code::write, &copy, sizeof(copy)); !rv) {
+    deus::copy data{ reinterpret_cast<UINT_PTR>(src), dst, size, 0 };
+    if (const auto rv = control(code::write, &data, sizeof(data)); !rv) {
       return std::unexpected(rv.error());
     }
-    return copy.copied;
+    return data.copied;
+  }
+
+  template <typename T>
+  result<void> write(T& src, UINT_PTR dst) noexcept
+  {
+    if (const auto rv = write(&src, dst, sizeof(src)); !rv) {
+      return std::unexpected(rv.error());
+    } else if (*rv != sizeof(src)) {
+      return std::unexpected(error(ERROR_PARTIAL_COPY));
+    }
+    return {};
   }
 
   result<void> watch(std::span<copy> data) noexcept

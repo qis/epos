@@ -1,4 +1,5 @@
 #pragma once
+#include "game.hpp"
 #include <epos/clock.hpp>
 #include <epos/input.hpp>
 #include <epos/overlay.hpp>
@@ -7,15 +8,16 @@
 #include <epos/timer.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/circular_buffer.hpp>
 #include <deus.hpp>
 #include <dxgi1_2.h>
 #include <array>
 #include <atomic>
 #include <thread>
 
-namespace epos {
+namespace epos::overwatch {
 
-class overwatch : public overlay {
+class view : public overlay {
 public:
   // Display width and height.
   static constexpr auto dw = 2560;
@@ -60,34 +62,28 @@ public:
     };
   };
 
-  overwatch(HINSTANCE instance, HWND hwnd, long cx, long cy);
+  view(HINSTANCE instance, HWND hwnd, long cx, long cy);
 
-  overwatch(overwatch&& other) = delete;
-  overwatch(const overwatch& other) = delete;
-  overwatch& operator=(overwatch&& other) = delete;
-  overwatch& operator=(const overwatch& other) = delete;
+  view(view&& other) = delete;
+  view(const view& other) = delete;
+  view& operator=(view&& other) = delete;
+  view& operator=(const view& other) = delete;
 
-  ~overwatch() override;
+  ~view() override;
 
-  void render() noexcept override;
+  command render() noexcept override;
+  void presented() noexcept override;
 
 private:
-  boost::asio::awaitable<void> update(
-    std::chrono::steady_clock::duration wait = {},
-    bool reset = false) noexcept;
-
+  boost::asio::awaitable<void> update(std::chrono::steady_clock::duration wait) noexcept;
   boost::asio::awaitable<void> run() noexcept;
-
-  boost::asio::awaitable<bool> on_open() noexcept;
-  boost::asio::awaitable<bool> on_process() noexcept;
-  boost::asio::awaitable<void> on_close() noexcept;
 
   static __forceinline void draw(
     auto& dc,
     std::wstring_view text,
     const D2D1_RECT_F& rect,
-    ComPtr<IDWriteTextFormat>& format,
-    ComPtr<ID2D1SolidColorBrush>& brush) noexcept
+    const ComPtr<IDWriteTextFormat>& format,
+    const ComPtr<ID2D1SolidColorBrush>& brush) noexcept
   {
     if (const auto size = static_cast<UINT32>(text.size())) {
       dc->DrawText(text.data(), size, format.Get(), rect, brush.Get(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
@@ -97,8 +93,8 @@ private:
   static __forceinline void draw(
     auto& dc,
     const D2D1_POINT_2F& origin,
-    ComPtr<IDWriteTextLayout>& layout,
-    ComPtr<ID2D1SolidColorBrush>& brush) noexcept
+    const ComPtr<IDWriteTextLayout>& layout,
+    const ComPtr<ID2D1SolidColorBrush>& brush) noexcept
   {
     if (layout) {
       dc->DrawTextLayout(origin, layout.Get(), brush.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
@@ -106,6 +102,7 @@ private:
   }
 
   input input_;
+  boost::circular_buffer<DirectX::XMFLOAT2> mouse_{ 3 };
 
   ComPtr<ID2D1Bitmap> outline_;
   ComPtr<ID2D1BitmapRenderTarget> outline_dc_;
@@ -136,35 +133,43 @@ private:
     ComPtr<IDWriteTextFormat> report;
   } formats_;
 
-  clock::duration duration_{};
-  std::wstring info_;
+  struct labels {
+    ComPtr<IDWriteTextLayout> origin;
+  } labels_;
 
   struct label {
-    float x{ 0.0f };
-    float y{ 0.0f };
+    FLOAT x{};
+    FLOAT y{};
     ComPtr<IDWriteTextLayout> layout;
   };
+
+  std::wstring info_;
 
   struct scene {
     ComPtr<IDWriteTextLayout> status;
     ComPtr<IDWriteTextLayout> report;
-    std::vector<label> labels;
-    clock::duration duration{};
+    bool ready{ false };
   };
 
   std::array<scene, 3> scenes_{};
   scene* scene_work_{ &scenes_[0] };
   scene* scene_draw_{ &scenes_[1] };
+  std::vector<label> scene_labels_{};
   std::atomic<scene*> scene_done_{ &scenes_[2] };
   std::atomic_bool scene_done_updated_{ false };
 
-  clock::time_point update_time_point_{ clock::now() };
-
-  text string_;
   text status_;
   text report_;
 
+  clock::time_point draw_{ clock::now() };
+  clock::time_point swap_{ clock::now() };
+  clock::duration swap_duration_{};
+
   deus::device device_;
+  std::vector<std::byte> memory_;
+
+  std::array<deus::copy, 1> watch_;
+  DirectX::XMMATRIX vm_{};
 
   std::atomic_bool stop_{ false };
   boost::asio::io_context context_{ 1 };
@@ -172,4 +177,4 @@ private:
   std::jthread thread_;
 };
 
-}  // namespace epos
+}  // namespace epos::overwatch

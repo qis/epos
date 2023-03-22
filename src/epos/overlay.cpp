@@ -38,7 +38,7 @@ overlay::overlay(HINSTANCE instance, HWND hwnd, long cx, long cy)
   description.Height = static_cast<decltype(description.Height)>(cy);
   description.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
   description.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  description.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+  description.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
   description.SampleDesc.Count = 1;
   description.BufferCount = 2;
   description.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
@@ -120,11 +120,22 @@ void overlay::run() noexcept
     });
     while (cmd == command::update) {
       dc_->BeginDraw();
-      render();
-      const auto result = dc_->EndDraw();
-      assert(SUCCEEDED(result));
+      cmd = render();
+      dc_->EndDraw();
       sc_->Present(0, DXGI_PRESENT_RESTART);
-      cmd = command_.exchange(command::none);
+      do {
+        Sleep(2);
+        dc_->BeginDraw();
+        cmd = render();
+        dc_->EndDraw();
+      } while (sc_->Present(0, DXGI_PRESENT_RESTART | DXGI_PRESENT_DO_NOT_WAIT) == DXGI_ERROR_WAS_STILL_DRAWING);
+      presented();
+      if (cmd != command::update) {
+        break;
+      }
+      if (command_.load(std::memory_order_acquire) == command::stop) {
+        break;
+      }
     }
   }
 }
