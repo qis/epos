@@ -39,6 +39,9 @@ public:
   // Weapon spread.
   static const D2D1_ELLIPSE spread;
 
+  // Trigger distance in meters.
+  static constexpr auto trigger = 12.0f;
+
   // Scene regions.
   struct region {
     static constexpr D2D1_RECT_F status{ 0, 0, sx, sh - 30 };
@@ -130,8 +133,8 @@ private:
     ComPtr<ID2D1SolidColorBrush> blue;
     ComPtr<ID2D1SolidColorBrush> gray;
     ComPtr<ID2D1SolidColorBrush> info;
-    ComPtr<ID2D1SolidColorBrush> enemy;
     ComPtr<ID2D1SolidColorBrush> spread;
+    ComPtr<ID2D1SolidColorBrush> enemy;
     ComPtr<ID2D1LinearGradientBrush> status;
     ComPtr<ID2D1LinearGradientBrush> report;
   } brushes_;

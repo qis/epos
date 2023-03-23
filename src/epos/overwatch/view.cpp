@@ -75,8 +75,8 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   create_brush(dc_, 0x4FC3F7, 1.0f, &brushes_.blue);    // 300 Light Blue
   create_brush(dc_, 0xBDBDBD, 1.0f, &brushes_.gray);    // 400 Gray
   create_brush(dc_, 0xF5F5F5, 0.6f, &brushes_.info);    // 100 Gray
-  create_brush(dc_, 0xEF5350, 1.0f, &brushes_.enemy);   // 400 Red
   create_brush(dc_, 0xFAFAFA, 0.4f, &brushes_.spread);  // 50 Gray
+  create_brush(dc_, 0xFF1010, 1.0f, &brushes_.enemy);   // Red
 
   D2D1_GRADIENT_STOP gradient[2];
   gradient[0].color = D2D1::ColorF(D2D1::ColorF::Black, 0.8f);
@@ -217,9 +217,6 @@ overlay::command view::render() noexcept
 
     // Calculate distance to camera in meters.
     auto m = XMVectorGetX(XMVector3Length(camera - target));
-    if (m < 1.1f) {
-      continue;
-    }
 
     // Calculate target offset for next frame.
     XMVECTOR offset{};
@@ -249,7 +246,7 @@ overlay::command view::render() noexcept
     const auto r1 = (bottom->y - top->y) / 1.8f;
     const auto r0 = (e.width() / e.height()) * r1 * 0.7f;
     const auto e0 = D2D1::Ellipse(D2D1::Point2F(sx + x0, sy + y0), r0, r1);
-    if (m < 8.0f) {
+    if (m < trigger) {
       dc_->DrawEllipse(e0, brushes_.black.Get(), 2.0f);
       dc_->DrawEllipse(e0, brushes_.white.Get(), 1.6f);
       dc_->DrawEllipse(e0, brushes_.enemy.Get(), 1.5f);
@@ -263,17 +260,16 @@ overlay::command view::render() noexcept
     string_label(sx + x0, sy + y0, 32, 32, formats_.label, brushes_.white);
 #endif
 
-    // Handle trigger.
-    if (fire || m >= 8.0f) {
+    // Check if fire conditions are met.
+    if (fire || m >= trigger) {
       continue;
     }
 
-    // Check if crosshair is inside ellipse or ellipse is inside spread.
+    // Press fire button if crosshair is inside ellipse or ellipse is inside spread.
     const auto ex = std::pow((sc.x - center->x), 2.0f) / std::pow(r0, 2.0f);
     const auto ey = std::pow((sc.y - center->y), 2.0f) / std::pow(r1, 2.0f);
     const auto rs = spread.radiusX;
     if (ex + ey < 1.0f || (ey < 1.0f && x0 - r0 > sc.x - rs && x0 + r0 < sc.x + rs)) {
-      // Inject fire.
       if (state.down(button::right) && tp0 > lockout_) {
         input_.mask(button::up, 16ms);
         lockout_ = tp0 + 128ms;
