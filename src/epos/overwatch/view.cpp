@@ -240,20 +240,16 @@ overlay::command view::render() noexcept
     if (!top) {
       continue;
     }
-    const auto center = game::project(vm_, target + offset, sw, sh);
-    if (!center) {
-      continue;
-    }
-    const auto bottom = game::project(vm_, e.bottom() + offset, sw, sh);
-    if (!bottom) {
+    const auto mid = game::project(vm_, target + offset, sw, sh);
+    if (!mid) {
       continue;
     }
 
     // Draw target.
-    const auto x0 = center->x - mouse.x;
-    const auto y0 = center->y - mouse.y;
-    const auto r1 = (bottom->y - top->y) / 1.8f;
-    const auto r0 = (e.width() / e.height()) * r1 * 0.7f;
+    const auto x0 = mid->x - mouse.x;
+    const auto y0 = mid->y - mouse.y;
+    const auto r1 = mid->y - top->y;
+    const auto r0 = (e.width() / e.height()) * r1 * 0.6f;
     const auto e0 = D2D1::Ellipse(D2D1::Point2F(sx + x0, sy + y0), r0, r1);
     if (m < trigger) {
       dc_->DrawEllipse(e0, brushes_.black.Get(), 2.0f);
@@ -289,8 +285,8 @@ overlay::command view::render() noexcept
     }
 
     // Press fire button if crosshair is inside ellipse or ellipse is inside spread.
-    const auto ex = std::pow((sc.x - center->x), 2.0f) / std::pow(r0, 2.0f);
-    const auto ey = std::pow((sc.y - center->y), 2.0f) / std::pow(r1, 2.0f);
+    const auto ex = std::pow((sc.x - mid->x), 2.0f) / std::pow(r0, 2.0f);
+    const auto ey = std::pow((sc.y - mid->y), 2.0f) / std::pow(r1, 2.0f);
     const auto rs = spread.radiusX;
     if (ex + ey < 1.0f || (ey < 1.0f && x0 - r0 > sc.x - rs && x0 + r0 < sc.x + rs)) {
       if (state.down(button::right) && tp0 > lockout_) {
