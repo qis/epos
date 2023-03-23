@@ -8,8 +8,6 @@
 #include <map>
 #include <set>
 
-#include <fstream>
-
 namespace epos::overwatch {
 
 view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
@@ -180,7 +178,8 @@ overlay::command view::render() noexcept
       selected_entity_ = 0;
     }
   } else if (state.pressed(key::pause)) {
-    team_ = team_ == game::team::one ? game::team::two : game::team::one;
+    const auto team = team_.load(std::memory_order_relaxed);
+    team_.store(team == game::team::one ? game::team::two : game::team::one, std::memory_order_release);
   }
 
   // Clear labels.
@@ -193,7 +192,7 @@ overlay::command view::render() noexcept
 
   // Draw entities.
   for (std::size_t i = 0; i < scene_draw_->entities; i++) {
-    if (!entities_[i] || entities_[i].team == team_) {
+    if (!entities_[i]) {
       continue;
     }
     const auto point = game::project(vm_, entities_[i].head(), sw, sh);
@@ -218,26 +217,6 @@ overlay::command view::render() noexcept
     dc_->DrawEllipse(e, brushes_.black.Get());
     string_.reset(L"ORIGIN");
     string_label(x, y - 20, 64, 32, formats_.label, brushes_.white);
-  }
-
-  // Draw crosshair.
-  {
-    const auto x = sx + sw / 2;
-    const auto y = sy + sh / 2;
-    const auto r = 3.0f;
-    const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
-    dc_->FillEllipse(e, brushes_.white.Get());
-    dc_->DrawEllipse(e, brushes_.black.Get());
-  }
-
-  // Save status.
-  if (state.pressed(key::pause)) {
-    const auto status = status_.get();
-    std::ofstream os("C:\\Workspace\\epos\\log.txt", std::ios::binary);
-    os.write(status.data(), status.size());
-    os.write("\n", 1);
-    os.flush();
-    os.close();
   }
 
   // Draw status.
@@ -276,6 +255,14 @@ overlay::command view::render() noexcept
   const auto swap_ms = duration_cast<milliseconds>(swap_duration_).count();
   std::format_to(std::back_inserter(info_), L"{:.03f} ms draw\n{:.03f} ms swap", draw_ms, swap_ms);
   draw(dc_, info_, region::text::duration, formats_.status, brushes_.info);
+
+  // Draw crosshair.
+  const auto x = sx + sw / 2;
+  const auto y = sy + sh / 2;
+  const auto r = 3.0f;
+  const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
+  dc_->FillEllipse(e, brushes_.white.Get());
+  dc_->DrawEllipse(e, brushes_.black.Get());
 
   // Update draw duration.
   draw_ = tp0;
@@ -395,6 +382,7 @@ boost::asio::awaitable<void> view::run() noexcept
     };
 
     // Watch memory.
+    game::entity entity;
     std::vector<deus::copy> watch;
     std::vector<std::uintptr_t> offsets;
     while (!stop_.load(std::memory_order_relaxed)) {
@@ -422,6 +410,7 @@ boost::asio::awaitable<void> view::run() noexcept
       // Get offsets.
       offsets.clear();
       std::error_code ec;
+      const auto team = team_.load(std::memory_order_acquire);
       for (const auto& region : *regions) {
         const auto read = device_.read(region.base_address, memory_.data(), region_size);
         if (!read) {
@@ -435,7 +424,10 @@ boost::asio::awaitable<void> view::run() noexcept
           }
           const auto signature = region.base_address + i + pos;
           if (signature >= region.base_address + offsetof(game::entity, signature)) {
-            offsets.push_back(signature - offsetof(game::entity, signature));
+            const auto address = signature - offsetof(game::entity, signature);
+            if (device_.read(address, entity) && entity.team != team) {
+              offsets.push_back(address);
+            }
           }
           i += pos;
         }

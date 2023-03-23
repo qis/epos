@@ -188,7 +188,7 @@ private:
   DirectX::XMMATRIX vm_{};
 
   std::size_t selected_entity_{ game::entities };
-  game::team team_{ game::team::one };
+  std::atomic<game::team> team_{ game::team::one };
 
   std::atomic_bool stop_{ false };
   boost::asio::io_context context_{ 1 };
