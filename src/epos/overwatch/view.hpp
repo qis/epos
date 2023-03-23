@@ -40,7 +40,7 @@ public:
   static const D2D1_ELLIPSE spread;
 
   // Trigger distance in meters.
-  static constexpr auto trigger = 12.0f;
+  static constexpr auto trigger = 16.0f;
 
   // Scene regions.
   struct region {

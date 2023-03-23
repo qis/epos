@@ -224,18 +224,18 @@ overlay::command view::render() noexcept
       movement_[i].push_back({ target, tp0 });
     }
 
-    // Calculate distance to camera in meters.
-    auto m = XMVectorGetX(XMVector3Length(camera - target));
-
     // Calculate target offset for next frame.
-    XMVECTOR offset{};
+    auto offset = XMVectorSet(0.0f, e.height() * 0.15, 0.0f, 0.0f);
     if (movement_[i].size() > 1) {
       const auto& snapshot = movement_[i].front();
       const auto time_scale = 8.0f / duration_cast<milliseconds>(tp0 - snapshot.time_point).count();
-      offset = (target - snapshot.target) * time_scale;
+      offset += (target - snapshot.target) * time_scale;
     }
 
-    // Project target.
+    // Calculate distance to camera in meters.
+    auto m = XMVectorGetX(XMVector3Length(camera - target));
+
+    // Project target points.
     const auto top = game::project(vm_, e.top() + offset, sw, sh);
     if (!top) {
       continue;
@@ -289,7 +289,7 @@ overlay::command view::render() noexcept
     const auto ey = std::pow((sc.y - mid->y), 2.0f) / std::pow(r1, 2.0f);
     const auto rs = spread.radiusX;
     if (ex + ey < 1.0f || (ey < 1.0f && x0 - r0 > sc.x - rs && x0 + r0 < sc.x + rs)) {
-      if (state.down(button::right) && tp0 > lockout_) {
+      if (tp0 > lockout_ && (m < 2.0f || state.down(button::right))) {
         input_.mask(button::up, 16ms);
         lockout_ = tp0 + 128ms;
       }
