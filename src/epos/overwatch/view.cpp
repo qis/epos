@@ -66,17 +66,16 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
     HR(dc->CreateSolidColorBrush(D2D1::ColorF(color, alpha), brush));
   };
 
-  create_brush(dc_, 0x000000, 1.0f, &brushes_.black);   // Black
-  create_brush(dc_, 0xFFFFFF, 1.0f, &brushes_.white);   // White
-  create_brush(dc_, 0xE57373, 1.0f, &brushes_.red);     // 300 Red
-  create_brush(dc_, 0xFFB74D, 1.0f, &brushes_.orange);  // 300 Orange
-  create_brush(dc_, 0xFFF176, 1.0f, &brushes_.yellow);  // 300 Yellow
-  create_brush(dc_, 0xAED581, 1.0f, &brushes_.green);   // 300 Light Green
-  create_brush(dc_, 0x4FC3F7, 1.0f, &brushes_.blue);    // 300 Light Blue
-  create_brush(dc_, 0xBDBDBD, 1.0f, &brushes_.gray);    // 400 Gray
-  create_brush(dc_, 0xF5F5F5, 0.6f, &brushes_.info);    // 100 Gray
-  create_brush(dc_, 0xFAFAFA, 0.4f, &brushes_.spread);  // 50 Gray
-  create_brush(dc_, 0xFF1010, 1.0f, &brushes_.enemy);   // Red
+  create_brush(dc_, 0x000000, 1.0f, &brushes_.black);   // Full Black
+  create_brush(dc_, 0xFFFFFF, 1.0f, &brushes_.white);   // Full White
+  create_brush(dc_, 0xE57373, 1.0f, &brushes_.red);     //  300 Red
+  create_brush(dc_, 0xFFB74D, 1.0f, &brushes_.orange);  //  300 Orange
+  create_brush(dc_, 0xFFF176, 1.0f, &brushes_.yellow);  //  300 Yellow
+  create_brush(dc_, 0xAED581, 1.0f, &brushes_.green);   //  300 Light Green
+  create_brush(dc_, 0x4FC3F7, 1.0f, &brushes_.blue);    //  300 Light Blue
+  create_brush(dc_, 0xBDBDBD, 1.0f, &brushes_.gray);    //  400 Gray
+  create_brush(dc_, 0xF5F5F5, 0.6f, &brushes_.info);    //  100 Gray
+  create_brush(dc_, 0xFAFAFA, 0.4f, &brushes_.spread);  //   50 Gray
 
   D2D1_GRADIENT_STOP gradient[2];
   gradient[0].color = D2D1::ColorF(D2D1::ColorF::Black, 0.8f);
@@ -99,6 +98,16 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
       D2D1::Point2F(region::report.left, region::report.bottom - 64)),
     shade.Get(),
     &brushes_.report));
+
+  create_brush(dc_, 0xD50000, 1.0f, &brushes_.enemy[0]);  // A700 Red
+  create_brush(dc_, 0xFFD180, 0.8f, &brushes_.enemy[1]);  // A100 Orange
+  create_brush(dc_, 0xFFE57F, 0.7f, &brushes_.enemy[2]);  // A100 Amber
+  create_brush(dc_, 0xFFFF8D, 0.6f, &brushes_.enemy[3]);  // A100 Yellow
+  create_brush(dc_, 0xF4FF81, 0.5f, &brushes_.enemy[4]);  // A100 Lime
+  create_brush(dc_, 0xCCFF90, 0.4f, &brushes_.enemy[5]);  // A100 Light Green
+  create_brush(dc_, 0xE8F5E9, 0.3f, &brushes_.enemy[6]);  //   50 Green
+  create_brush(dc_, 0xECEFF1, 0.2f, &brushes_.enemy[7]);  //   50 Blue Gray
+  create_brush(dc_, 0xFAFAFA, 0.1f, &brushes_.enemy[8]);  //   50 Gray
 
   // Create formats.
   const auto create_format = [this](LPCWSTR name, FLOAT size, BOOL bold, IDWriteTextFormat** format) {
@@ -249,9 +258,23 @@ overlay::command view::render() noexcept
     if (m < trigger) {
       dc_->DrawEllipse(e0, brushes_.black.Get(), 2.0f);
       dc_->DrawEllipse(e0, brushes_.white.Get(), 1.6f);
-      dc_->DrawEllipse(e0, brushes_.enemy.Get(), 1.5f);
+      dc_->DrawEllipse(e0, brushes_.enemy[0].Get(), 1.5f);
+    } else if (m < trigger * 1.2f) {
+      dc_->DrawEllipse(e0, brushes_.enemy[1].Get());
+    } else if (m < trigger * 1.4f) {
+      dc_->DrawEllipse(e0, brushes_.enemy[2].Get());
+    } else if (m < trigger * 1.6f) {
+      dc_->DrawEllipse(e0, brushes_.enemy[3].Get());
+    } else if (m < trigger * 1.8f) {
+      dc_->DrawEllipse(e0, brushes_.enemy[4].Get());
+    } else if (m < trigger * 2.0f) {
+      dc_->DrawEllipse(e0, brushes_.enemy[5].Get());
+    } else if (m < trigger * 2.2f) {
+      dc_->DrawEllipse(e0, brushes_.enemy[6].Get());
+    } else if (m < trigger * 2.4f) {
+      dc_->DrawEllipse(e0, brushes_.enemy[7].Get());
     } else {
-      dc_->DrawEllipse(e0, brushes_.info.Get());
+      dc_->DrawEllipse(e0, brushes_.enemy[8].Get());
     }
 
     // Create target label.

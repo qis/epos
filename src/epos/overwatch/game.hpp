@@ -176,7 +176,7 @@ inline std::optional<XMFLOAT2> project(const XMMATRIX& vm, XMVECTOR v, int sw, i
   const auto cy = sh / 2.0f;
   const auto sx = cx + cx * vx / vw;
   const auto sy = cy - cy * vy / vw;
-  if (sx < 0 || sy < 0 || sx >= sw || sy >= sh) {
+  if (sx < 0 || sy < -sh || sx >= sw || sy >= sh * 1.5f) {
     return std::nullopt;
   }
   return XMFLOAT2{ sx, sy };

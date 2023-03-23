@@ -134,9 +134,9 @@ private:
     ComPtr<ID2D1SolidColorBrush> gray;
     ComPtr<ID2D1SolidColorBrush> info;
     ComPtr<ID2D1SolidColorBrush> spread;
-    ComPtr<ID2D1SolidColorBrush> enemy;
     ComPtr<ID2D1LinearGradientBrush> status;
     ComPtr<ID2D1LinearGradientBrush> report;
+    std::array<ComPtr<ID2D1SolidColorBrush>, 9> enemy;
   } brushes_;
 
   struct formats {
