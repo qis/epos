@@ -8,6 +8,8 @@
 #include <map>
 #include <set>
 
+#include <fstream>
+
 namespace epos::overwatch {
 
 view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
@@ -73,6 +75,7 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   create_brush(dc_, 0xFFFFFF, 1.0f, &brushes_.white);   // White
   create_brush(dc_, 0xA0A0A0, 1.0f, &brushes_.gray);    // Gray
   create_brush(dc_, 0xF0F0F0, 0.6f, &brushes_.info);    // Info
+  create_brush(dc_, 0xF01010, 1.0f, &brushes_.enemy);   // Enemy
 
   D2D1_GRADIENT_STOP gradient[2];
   gradient[0].color = D2D1::ColorF(D2D1::ColorF::Black, 0.8f);
@@ -146,13 +149,6 @@ overlay::command view::render() noexcept
   dc_->Clear();
   dc_->SetTransform(D2D1::IdentityMatrix());
 
-  // Draw status.
-  if (scene_draw_->status) {
-    dc_->FillRectangle(region::status, brushes_.status.Get());
-    constexpr D2D1_POINT_2F origin{ region::text::status.left, region::text::status.top };
-    draw(dc_, origin, scene_draw_->status, brushes_.gray);
-  }
-
   // Draw report.
   if (scene_draw_->report) {
     dc_->FillRectangle(region::report, brushes_.report.Get());
@@ -171,6 +167,22 @@ overlay::command view::render() noexcept
   mouse.x /= mouse_.size();
   mouse.y /= mouse_.size();
 
+  if (state.pressed(key::f10)) {
+    selected_entity_ = scene_draw_->entities;
+  } else if (state.pressed(key::f11)) {
+    if (selected_entity_ == 0) {
+      selected_entity_ = scene_draw_->entities;
+    } else {
+      selected_entity_--;
+    }
+  } else if (state.pressed(key::f12)) {
+    if (++selected_entity_ > scene_draw_->entities) {
+      selected_entity_ = 0;
+    }
+  } else if (state.pressed(key::pause)) {
+    team_ = team_ == game::team::one ? game::team::two : game::team::one;
+  }
+
   // Clear labels.
   scene_labels_.clear();
 
@@ -181,31 +193,19 @@ overlay::command view::render() noexcept
 
   // Draw entities.
   for (std::size_t i = 0; i < scene_draw_->entities; i++) {
-    if (const auto torso = game::project(vm_, entities_[i].torso(), sw, sh)) {
-      const auto x = sx + torso->x - mouse.x;
-      const auto y = sy + torso->y - mouse.y;
-      const auto r = 5.0f;
-      const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
-      if (entities_[i]) {
-        switch (entities_[i].team) {
-        case game::team::one:
-          dc_->FillEllipse(e, brushes_.green.Get());
-          dc_->DrawEllipse(e, brushes_.black.Get());
-          break;
-        case game::team::two:
-          dc_->FillEllipse(e, brushes_.red.Get());
-          dc_->DrawEllipse(e, brushes_.black.Get());
-          break;
-        default:
-          string_.reset(L"{:02X}", static_cast<BYTE>(entities_[i].team));
-          string_label(x, y, 32, 32, formats_.debug, brushes_.blue);
-          break;
-        }
-      } else {
-        dc_->FillEllipse(e, brushes_.gray.Get());
-        dc_->DrawEllipse(e, brushes_.black.Get());
-      }
+    if (!entities_[i] || entities_[i].team == team_) {
+      continue;
     }
+    const auto point = game::project(vm_, entities_[i].head(), sw, sh);
+    if (!point) {
+      continue;
+    }
+    const auto x = sx + point->x - mouse.x;
+    const auto y = sy + point->y - mouse.y;
+    const auto r = 5.0f;
+    const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
+    dc_->FillEllipse(e, brushes_.enemy.Get());
+    dc_->DrawEllipse(e, brushes_.black.Get());
   }
 
   // Draw origin.
@@ -218,6 +218,38 @@ overlay::command view::render() noexcept
     dc_->DrawEllipse(e, brushes_.black.Get());
     string_.reset(L"ORIGIN");
     string_label(x, y - 20, 64, 32, formats_.label, brushes_.white);
+  }
+
+  // Draw crosshair.
+  {
+    const auto x = sx + sw / 2;
+    const auto y = sy + sh / 2;
+    const auto r = 3.0f;
+    const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
+    dc_->FillEllipse(e, brushes_.white.Get());
+    dc_->DrawEllipse(e, brushes_.black.Get());
+  }
+
+  // Save status.
+  if (state.pressed(key::pause)) {
+    const auto status = status_.get();
+    std::ofstream os("C:\\Workspace\\epos\\log.txt", std::ios::binary);
+    os.write(status.data(), status.size());
+    os.write("\n", 1);
+    os.flush();
+    os.close();
+  }
+
+  // Draw status.
+  if (status_) {
+    ComPtr<IDWriteTextLayout> status;
+    constexpr auto cx = region::text::status.right - region::text::status.left;
+    constexpr auto cy = region::text::status.bottom - region::text::status.top;
+    status_.create(factory_, formats_.status, cx, cy, &status);
+    dc_->FillRectangle(region::status, brushes_.status.Get());
+    constexpr D2D1_POINT_2F origin{ region::text::status.left, region::text::status.top };
+    draw(dc_, origin, status, brushes_.gray);
+    status_.reset();
   }
 
   // Draw labels.
@@ -259,13 +291,6 @@ void view::presented() noexcept
 
 boost::asio::awaitable<void> view::update(std::chrono::steady_clock::duration wait) noexcept
 {
-  // Create status.
-  if (status_) {
-    constexpr auto cx = region::text::status.right - region::text::status.left;
-    constexpr auto cy = region::text::status.bottom - region::text::status.top;
-    status_.create(factory_, formats_.status, cx, cy, &scene_work_->status);
-  }
-
   // Create report.
   if (report_) {
     constexpr auto cx = region::text::report.right - region::text::report.left;
@@ -283,11 +308,9 @@ boost::asio::awaitable<void> view::update(std::chrono::steady_clock::duration wa
   overlay::update();
 
   // Reset scene.
-  scene_work_->status.Reset();
   scene_work_->report.Reset();
   scene_work_->entities = 0;
   scene_work_->vm = false;
-  status_.reset();
   report_.reset();
 
   // Limit frame rate.
@@ -411,8 +434,8 @@ boost::asio::awaitable<void> view::run() noexcept
             break;
           }
           const auto signature = region.base_address + i + pos;
-          if (signature >= region.base_address + sizeof(game::entity)) {
-            offsets.push_back(signature - sizeof(game::entity));
+          if (signature >= region.base_address + offsetof(game::entity, signature)) {
+            offsets.push_back(signature - offsetof(game::entity, signature));
           }
           i += pos;
         }
@@ -442,7 +465,7 @@ boost::asio::awaitable<void> view::run() noexcept
       if (!changed && std::equal(offsets.begin(), offsets.end(), watch.begin(), compare)) {
         scene_work_->entities = entities;
         scene_work_->vm = true;
-        co_await update(6s);
+        co_await update(3s);
         continue;
       }
 

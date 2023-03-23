@@ -122,6 +122,7 @@ private:
     ComPtr<ID2D1SolidColorBrush> white;
     ComPtr<ID2D1SolidColorBrush> gray;
     ComPtr<ID2D1SolidColorBrush> info;
+    ComPtr<ID2D1SolidColorBrush> enemy;
     ComPtr<ID2D1LinearGradientBrush> status;
     ComPtr<ID2D1LinearGradientBrush> report;
   } brushes_;
@@ -143,7 +144,6 @@ private:
   std::wstring info_;
 
   struct scene {
-    ComPtr<IDWriteTextLayout> status;
     ComPtr<IDWriteTextLayout> report;
     std::size_t entities{ 0 };
     bool vm{ false };
@@ -186,6 +186,9 @@ private:
   std::vector<std::byte> memory_{ game::entity_region_size };
   std::array<game::entity, game::entities> entities_;
   DirectX::XMMATRIX vm_{};
+
+  std::size_t selected_entity_{ game::entities };
+  game::team team_{ game::team::one };
 
   std::atomic_bool stop_{ false };
   boost::asio::io_context context_{ 1 };

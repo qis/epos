@@ -242,6 +242,11 @@ public:
     }
   }
 
+  std::string get() const
+  {
+    return W2S(string_);
+  }
+
 private:
   constexpr std::back_insert_iterator<std::wstring> back_inserter() noexcept
   {
