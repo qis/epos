@@ -121,13 +121,13 @@ private:
   ComPtr<IDWriteFontCollection2> fonts_;
 
   struct brushes {
+    ComPtr<ID2D1SolidColorBrush> black;
+    ComPtr<ID2D1SolidColorBrush> white;
     ComPtr<ID2D1SolidColorBrush> red;
     ComPtr<ID2D1SolidColorBrush> orange;
     ComPtr<ID2D1SolidColorBrush> yellow;
     ComPtr<ID2D1SolidColorBrush> green;
     ComPtr<ID2D1SolidColorBrush> blue;
-    ComPtr<ID2D1SolidColorBrush> black;
-    ComPtr<ID2D1SolidColorBrush> white;
     ComPtr<ID2D1SolidColorBrush> gray;
     ComPtr<ID2D1SolidColorBrush> info;
     ComPtr<ID2D1SolidColorBrush> enemy;

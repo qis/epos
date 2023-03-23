@@ -66,17 +66,17 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
     HR(dc->CreateSolidColorBrush(D2D1::ColorF(color, alpha), brush));
   };
 
-  create_brush(dc_, 0xE57373, 1.0f, &brushes_.red);     // A300 Red
-  create_brush(dc_, 0xFFB74D, 1.0f, &brushes_.orange);  // A300 Orange
-  create_brush(dc_, 0xFFF176, 1.0f, &brushes_.yellow);  // A300 Yellow
-  create_brush(dc_, 0xAED581, 1.0f, &brushes_.green);   // A300 Light Green
-  create_brush(dc_, 0x4FC3F7, 1.0f, &brushes_.blue);    // A300 Light Blue
   create_brush(dc_, 0x000000, 1.0f, &brushes_.black);   // Black
   create_brush(dc_, 0xFFFFFF, 1.0f, &brushes_.white);   // White
-  create_brush(dc_, 0xA0A0A0, 1.0f, &brushes_.gray);    // Gray
-  create_brush(dc_, 0xF0F0F0, 0.6f, &brushes_.info);    // Info
-  create_brush(dc_, 0xF01010, 1.0f, &brushes_.enemy);   // Enemy
-  create_brush(dc_, 0xFFFFFF, 0.6f, &brushes_.spread);  // Spread
+  create_brush(dc_, 0xE57373, 1.0f, &brushes_.red);     // 300 Red
+  create_brush(dc_, 0xFFB74D, 1.0f, &brushes_.orange);  // 300 Orange
+  create_brush(dc_, 0xFFF176, 1.0f, &brushes_.yellow);  // 300 Yellow
+  create_brush(dc_, 0xAED581, 1.0f, &brushes_.green);   // 300 Light Green
+  create_brush(dc_, 0x4FC3F7, 1.0f, &brushes_.blue);    // 300 Light Blue
+  create_brush(dc_, 0xBDBDBD, 1.0f, &brushes_.gray);    // 400 Gray
+  create_brush(dc_, 0xF5F5F5, 0.6f, &brushes_.info);    // 100 Gray
+  create_brush(dc_, 0xEF5350, 1.0f, &brushes_.enemy);   // 400 Red
+  create_brush(dc_, 0xFAFAFA, 0.4f, &brushes_.spread);  // 50 Gray
 
   D2D1_GRADIENT_STOP gradient[2];
   gradient[0].color = D2D1::ColorF(D2D1::ColorF::Black, 0.8f);
@@ -249,10 +249,22 @@ overlay::command view::render() noexcept
     const auto r1 = (bottom->y - top->y) / 1.8f;
     const auto r0 = (e.width() / e.height()) * r1 * 0.7f;
     const auto e0 = D2D1::Ellipse(D2D1::Point2F(sx + x0, sy + y0), r0, r1);
-    dc_->DrawEllipse(e0, brushes_.enemy.Get());
+    if (m < 8.0f) {
+      dc_->DrawEllipse(e0, brushes_.black.Get(), 2.0f);
+      dc_->DrawEllipse(e0, brushes_.white.Get(), 1.6f);
+      dc_->DrawEllipse(e0, brushes_.enemy.Get(), 1.5f);
+    } else {
+      dc_->DrawEllipse(e0, brushes_.info.Get());
+    }
+
+    // Create target label.
+#ifndef NDEBUG
+    string_.reset(L"{:.0f}", m);
+    string_label(sx + x0, sy + y0, 32, 32, formats_.label, brushes_.white);
+#endif
 
     // Handle trigger.
-    if (fire) {
+    if (fire || m >= 8.0f) {
       continue;
     }
 

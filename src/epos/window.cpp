@@ -217,6 +217,9 @@ LRESULT window::proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) noexcept
         window->on_menu();
       }
     }
+    if (LOWORD(lparam) == WM_LBUTTONDOWN) {
+      PostMessage(hwnd, WM_CLOSE, 0, 0);
+    }
     return 0;
   }
   return DefWindowProc(hwnd, msg, wparam, lparam);
