@@ -10,6 +10,8 @@
 
 namespace epos::overwatch {
 
+const D2D1_ELLIPSE view::spread{ D2D1::Ellipse(D2D1::Point2F(sx + sc.x, sy + sc.y), 80.0f, 80.0f) };
+
 view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   overlay(instance, hwnd, cx, cy), input_(instance, hwnd)
 {
@@ -74,6 +76,7 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   create_brush(dc_, 0xA0A0A0, 1.0f, &brushes_.gray);    // Gray
   create_brush(dc_, 0xF0F0F0, 0.6f, &brushes_.info);    // Info
   create_brush(dc_, 0xF01010, 1.0f, &brushes_.enemy);   // Enemy
+  create_brush(dc_, 0xFFFFFF, 0.6f, &brushes_.spread);  // Spread
 
   D2D1_GRADIENT_STOP gradient[2];
   gradient[0].color = D2D1::ColorF(D2D1::ColorF::Black, 0.8f);
@@ -173,16 +176,13 @@ overlay::command view::render() noexcept
   mouse.x /= mouse_.size();
   mouse.y /= mouse_.size();
 
-  if (state.pressed(button::right) || (state.down(button::right) && state.pressed(button::left))) {
-    lockout_ = tp0 + 1300ms;
-  }
-
   if (state.pressed(key::pause)) {
     const auto team = team_.load(std::memory_order_relaxed);
     team_.store(team == game::team::one ? game::team::two : game::team::one, std::memory_order_release);
   }
-  if (state.pressed(key::f12)) {
-    widowmaker_ = !widowmaker_;
+
+  if (state.down(button::right)) {
+    lockout_ = tp0 + 64ms;
   }
 
   // Clear labels.
@@ -209,77 +209,61 @@ overlay::command view::render() noexcept
       continue;
     }
 
-    // Get target position.
-    auto target = e.head();
+    // Get target.
+    auto target = e.center();
     if (update_movement || movement_[i].empty()) {
       movement_[i].push_back({ target, tp0 });
     }
 
     // Calculate distance to camera in meters.
     auto m = XMVectorGetX(XMVector3Length(camera - target));
-    if (m < 1.5f) {
+    if (m < 1.1f) {
       continue;
     }
 
-    // Set fire state.
-    if (widowmaker_) {
-      const auto top = game::project(vm_, e.top(), sw, sh);
-      const auto mid = game::project(vm_, e.mid(), sw, sh);
-      if (top && mid) {
-        const auto x0 = -mouse.x + top->x - 4.0f;
-        const auto x1 = -mouse.x + top->x + 4.0f;
-        const auto y0 = -mouse.y + top->y;
-        const auto y1 = -mouse.y + mid->y;
-        if (sc.y >= y0 && sc.y <= y1 && sc.x >= x0 && sc.x <= x1) {
-          fire = true;
-        }
-        const D2D1_RECT_F rect{ sx + x0, sy + y0, sx + x1, sy + y1 };
-        dc_->DrawRectangle(rect, brushes_.enemy.Get());
-      }
-      continue;
-    }
-
-    // Calculate arrow travel time in seconds.
-    auto s = m * game::arrow_speed;
-
-    // Calculate target position on arrow impact.
+    // Calculate target offset for next frame.
+    XMVECTOR offset{};
     if (movement_[i].size() > 1) {
       const auto& snapshot = movement_[i].front();
-      const auto scale = s / duration_cast<seconds>(tp0 - snapshot.time_point).count();
-      target += (target - snapshot.target) * scale;
-      m = XMVectorGetX(XMVector3Length(camera - target));
-      s = m * game::arrow_speed;
+      const auto time_scale = 8.0f / duration_cast<milliseconds>(tp0 - snapshot.time_point).count();
+      offset = (target - snapshot.target) * time_scale;
     }
 
-    // Account for arrow drop.
-    target += m * game::arrow_drop;
-
     // Project target.
-    const auto point = game::project(vm_, target, sw, sh);
-    if (!point) {
+    const auto top = game::project(vm_, e.top() + offset, sw, sh);
+    if (!top) {
+      continue;
+    }
+    const auto center = game::project(vm_, target + offset, sw, sh);
+    if (!center) {
+      continue;
+    }
+    const auto bottom = game::project(vm_, e.bottom() + offset, sw, sh);
+    if (!bottom) {
       continue;
     }
 
     // Draw target.
-    const auto x0 = sx + point->x - mouse.x;
-    const auto y0 = sy + point->y - mouse.y;
-    const auto r0 = std::max(2.0f, std::sqrt(500.0f / m));
-    const auto e0 = D2D1::Ellipse(D2D1::Point2F(x0, y0), r0, r0);
-    if (const auto head = game::project(vm_, e.head(), sw, sh)) {
-      const auto x1 = sx + head->x - mouse.x;
-      const auto y1 = sy + head->y - mouse.y;
-      dc_->DrawLine({ x0, y0 }, { x1, y1 }, brushes_.enemy.Get());
+    const auto x0 = sx + center->x - mouse.x;
+    const auto y0 = sy + center->y - mouse.y;
+    const auto r1 = (bottom->y - top->y) / 1.8f;
+    const auto r0 = (e.width() / e.height()) * r1 * 0.7f;
+    const auto e0 = D2D1::Ellipse(D2D1::Point2F(x0, y0), r0, r1);
+    dc_->DrawEllipse(e0, brushes_.enemy.Get());
+
+    // Handle trigger.
+    if (fire || !state.down(button::right)) {
+      continue;
     }
-    dc_->FillEllipse(e0, brushes_.enemy.Get());
-    dc_->DrawEllipse(e0, brushes_.black.Get());
-    //string_.reset(L"{:.1f}m ({:.03f}s)", m, s);
-    //string_label(x, y + 20, 63, 32, formats_.label, brushes_.white);
+
+    // TODO: Check crosshair is inside ellipse.
+    // TODO: Check if ellipse is between crosshair and spread horizontally and crosshair is inside ellipse vertically.
   }
 
   // Inject fire.
   if (fire && state.down(button::right) && tp0 > lockout_) {
     input_.mask(button::up, 16ms);
-    lockout_ = tp0 + 1300ms;
+    lockout_ = tp0 + 64ms;
   }
 
   // Draw status.
@@ -324,8 +308,11 @@ overlay::command view::render() noexcept
   const auto y = sy + sc.y;
   const auto r = 3.0f;
   const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
-  dc_->FillEllipse(e, state.down(button::left) ? brushes_.blue.Get() : brushes_.white.Get());
+  dc_->FillEllipse(e, state.down(button::right) ? brushes_.blue.Get() : brushes_.white.Get());
   dc_->DrawEllipse(e, brushes_.black.Get());
+
+  // Draw weapon spread.
+  dc_->DrawEllipse(spread, brushes_.spread.Get());
 
   // Update draw duration.
   draw_ = tp0;

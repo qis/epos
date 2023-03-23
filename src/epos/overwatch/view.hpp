@@ -36,6 +36,9 @@ public:
   // Sceen center.
   static constexpr D2D1_POINT_2F sc{ sw / 2.0f, sh / 2.0f };
 
+  // Weapon spread.
+  static const D2D1_ELLIPSE spread;
+
   // Scene regions.
   struct region {
     static constexpr D2D1_RECT_F status{ 0, 0, sx, sh - 30 };
@@ -128,6 +131,7 @@ private:
     ComPtr<ID2D1SolidColorBrush> gray;
     ComPtr<ID2D1SolidColorBrush> info;
     ComPtr<ID2D1SolidColorBrush> enemy;
+    ComPtr<ID2D1SolidColorBrush> spread;
     ComPtr<ID2D1LinearGradientBrush> status;
     ComPtr<ID2D1LinearGradientBrush> report;
   } brushes_;
@@ -199,10 +203,9 @@ private:
 
   std::array<boost::circular_buffer<snapshot>, game::entities> movement_;
   clock::time_point update_movement_{ clock::now() };
-  clock::time_point lockout_{ clock::now() };
 
   std::atomic<game::team> team_{ game::team::one };
-  bool widowmaker_{ false };
+  clock::time_point lockout_{ clock::now() };
 
   std::atomic_bool stop_{ false };
   boost::asio::io_context context_{ 1 };
