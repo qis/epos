@@ -33,6 +33,9 @@ public:
   static constexpr auto sx = (dw - sw) / 2;
   static constexpr auto sy = 0;
 
+  // Sceen center.
+  static constexpr D2D1_POINT_2F sc{ sw / 2.0f, sh / 2.0f };
+
   // Scene regions.
   struct region {
     static constexpr D2D1_RECT_F status{ 0, 0, sx, sh - 30 };
@@ -196,8 +199,10 @@ private:
 
   std::array<boost::circular_buffer<snapshot>, game::entities> movement_;
   clock::time_point update_movement_{ clock::now() };
+  clock::time_point lockout_{ clock::now() };
 
   std::atomic<game::team> team_{ game::team::one };
+  bool widowmaker_{ false };
 
   std::atomic_bool stop_{ false };
   boost::asio::io_context context_{ 1 };

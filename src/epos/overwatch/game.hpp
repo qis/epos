@@ -42,14 +42,9 @@ struct entity {
     return XMVectorSet((p0.x + p1.x) / 2.0f, p1.y, (p0.z + p1.z) / 2.0f, 0.0f);
   }
 
-  XMVECTOR center() const noexcept
+  XMVECTOR mid() const noexcept
   {
     return XMVectorSet((p0.x + p1.x) / 2.0f, (p0.y + p1.y) / 2.0f, (p0.z + p1.z) / 2.0f, 0.0f);
-  }
-
-  XMVECTOR bottom() const noexcept
-  {
-    return XMVectorSet((p0.x + p1.x) / 2.0f, p0.y, (p0.z + p1.z) / 2.0f, 0.0f);
   }
 
   XMVECTOR head() const noexcept
@@ -101,7 +96,7 @@ struct entity {
       // 0.00 - 0.20 MOIRA
       // 0.10 - 0.30 ZENYATTA
       // 0.00 - 0.15 (BOT)
-      //point.y -= eh * 0.50f;
+      point.y -= eh * 0.50f;
     } else if (eh < 1.70f) {
       // 1.60 | 1.00 -> 0.10
       // 0.00 - 0.15 RAMATTRA
@@ -199,6 +194,6 @@ inline XMVECTOR camera(const XMMATRIX& vm) noexcept
 inline const XMVECTOR arrow_drop{ XMVectorSet(0.0f, 0.019f, 0.0f, 0.0f) };
 
 // How many seconds it takes an arrow to travel a meter.
-constexpr float arrow_speed{ 0.01116f };
+constexpr float arrow_speed{ 0.01f };
 
 }  // namespace epos::overwatch::game
