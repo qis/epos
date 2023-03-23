@@ -36,12 +36,6 @@ public:
   // Sceen center.
   static constexpr D2D1_POINT_2F sc{ sw / 2.0f, sh / 2.0f };
 
-  // Weapon spread.
-  static const D2D1_ELLIPSE spread;
-
-  // Trigger distance in meters.
-  static constexpr auto trigger = 16.0f;
-
   // Scene regions.
   struct region {
     static constexpr D2D1_RECT_F status{ 0, 0, sx, sh - 30 };
@@ -86,6 +80,8 @@ public:
   void presented() noexcept override;
 
 private:
+  void hero(clock::time_point tp0, const epos::input::state& state, const XMFLOAT2& mouse) noexcept;
+
   boost::asio::awaitable<void> update(std::chrono::steady_clock::duration wait) noexcept;
   boost::asio::awaitable<void> run() noexcept;
 
