@@ -190,6 +190,10 @@ overlay::command view::render() noexcept
     team_.store(team == game::team::one ? game::team::two : game::team::one, std::memory_order_release);
   }
 
+  if (state.pressed(key::e) || state.pressed(key::shift)) {
+    lockout_ = tp0 + 1280ms;
+  }
+
   if (state.down(button::left)) {
     lockout_ = tp0 + 64ms;
   }
