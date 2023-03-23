@@ -17,6 +17,8 @@
 
 namespace epos::overwatch {
 
+using namespace DirectX;
+
 class view : public overlay {
 public:
   // Display width and height.
@@ -102,7 +104,7 @@ private:
   }
 
   input input_;
-  boost::circular_buffer<DirectX::XMFLOAT2> mouse_{ 3 };
+  boost::circular_buffer<XMFLOAT2> mouse_{ 3 };
 
   ComPtr<ID2D1Bitmap> outline_;
   ComPtr<ID2D1BitmapRenderTarget> outline_dc_;
@@ -185,9 +187,16 @@ private:
   deus::device device_;
   std::vector<std::byte> memory_{ game::entity_region_size };
   std::array<game::entity, game::entities> entities_;
-  DirectX::XMMATRIX vm_{};
+  XMMATRIX vm_{};
 
-  std::size_t selected_entity_{ game::entities };
+  struct snapshot {
+    XMVECTOR target{};
+    clock::time_point time_point;
+  };
+
+  std::array<boost::circular_buffer<snapshot>, game::entities> movement_;
+  clock::time_point update_movement_{ clock::now() };
+
   std::atomic<game::team> team_{ game::team::one };
 
   std::atomic_bool stop_{ false };

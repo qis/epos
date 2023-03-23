@@ -1,4 +1,5 @@
 #pragma once
+#include <epos/clock.hpp>
 #include <DirectXMath.h>
 #include <qis/signature.hpp>
 #include <d3d11.h>
@@ -26,7 +27,6 @@ enum class team : BYTE {
 };
 
 struct entity {
-  std::array<std::byte, 1024> preamble{};
   XMFLOAT3 p0{};
   std::array<std::byte, 4> unknown0{};
   XMFLOAT3 p1{};
@@ -35,27 +35,27 @@ struct entity {
   std::array<std::byte, 2> unknown2{};
   BYTE live{};
   std::array<std::byte, entity_signature_size> signature{};
-  XMMATRIX matrix{};
-  std::array<std::byte, 1024> postamble{};
+  std::array<std::uint32_t, 8> unknown3{};
 
-  constexpr XMFLOAT3 top() const noexcept
+  XMVECTOR top() const noexcept
   {
-    return { (p0.x + p1.x) / 2.0f, p1.y, (p0.z + p1.z) / 2.0f };
+    return XMVectorSet((p0.x + p1.x) / 2.0f, p1.y, (p0.z + p1.z) / 2.0f, 0.0f);
   }
 
-  constexpr XMFLOAT3 center() const noexcept
+  XMVECTOR center() const noexcept
   {
-    return { (p0.x + p1.x) / 2.0f, (p0.y + p1.y) / 2.0f, (p0.z + p1.z) / 2.0f };
+    return XMVectorSet((p0.x + p1.x) / 2.0f, (p0.y + p1.y) / 2.0f, (p0.z + p1.z) / 2.0f, 0.0f);
   }
 
-  constexpr XMFLOAT3 bottom() const noexcept
+  XMVECTOR bottom() const noexcept
   {
-    return { (p0.x + p1.x) / 2.0f, p0.y, (p0.z + p1.z) / 2.0f };
+    return XMVectorSet((p0.x + p1.x) / 2.0f, p0.y, (p0.z + p1.z) / 2.0f, 0.0f);
   }
 
-  constexpr XMFLOAT3 head() const noexcept
+  XMVECTOR head() const noexcept
   {
-    auto point = top();
+    XMFLOAT3 point{};
+    XMStoreFloat3(&point, top());
     const auto eh = height();
     if (eh < 1.10f) {
       // 1.05 | 1.00 -> 0.40
@@ -101,7 +101,7 @@ struct entity {
       // 0.00 - 0.20 MOIRA
       // 0.10 - 0.30 ZENYATTA
       // 0.00 - 0.15 (BOT)
-      point.y -= eh * 0.50f;
+      //point.y -= eh * 0.50f;
     } else if (eh < 1.70f) {
       // 1.60 | 1.00 -> 0.10
       // 0.00 - 0.15 RAMATTRA
@@ -120,7 +120,7 @@ struct entity {
       // 0.35 - 0.35 WINSTON
       point.y -= eh * 0.25f;
     }
-    return point;
+    return XMVectorSet(point.x, point.y, point.z, 0.0f);
   }
 
   constexpr float height() const noexcept
@@ -153,17 +153,20 @@ inline const auto entity_signature = []() noexcept {
   return signature;
 }();
 
-inline std::optional<XMFLOAT2> project(const XMMATRIX& vm, const XMFLOAT3& v, int sw, int sh) noexcept
+inline std::optional<XMFLOAT2> project(const XMMATRIX& vm, XMVECTOR v, int sw, int sh) noexcept
 {
+  const auto x = XMVectorGetX(v);
+  const auto y = XMVectorGetY(v);
+  const auto z = XMVectorGetZ(v);
   // clang-format off
 #ifdef _XM_NO_INTRINSICS_
-  const auto vx = vm._11 * v.x + vm._21 * v.y + vm._31 * v.z + vm._41;
-  const auto vy = vm._12 * v.x + vm._22 * v.y + vm._32 * v.z + vm._42;
-  const auto vw = vm._14 * v.x + vm._24 * v.y + vm._34 * v.z + vm._44;
+  const auto vx = vm._11 * x + vm._21 * y + vm._31 * z + vm._41;
+  const auto vy = vm._12 * x + vm._22 * y + vm._32 * z + vm._42;
+  const auto vw = vm._14 * x + vm._24 * y + vm._34 * z + vm._44;
 #else
-  const auto vx = vm.r[0].m128_f32[0] * v.x + vm.r[1].m128_f32[0] * v.y + vm.r[2].m128_f32[0] * v.z + vm.r[3].m128_f32[0];
-  const auto vy = vm.r[0].m128_f32[1] * v.x + vm.r[1].m128_f32[1] * v.y + vm.r[2].m128_f32[1] * v.z + vm.r[3].m128_f32[1];
-  const auto vw = vm.r[0].m128_f32[3] * v.x + vm.r[1].m128_f32[3] * v.y + vm.r[2].m128_f32[3] * v.z + vm.r[3].m128_f32[3];
+  const auto vx = vm.r[0].m128_f32[0] * x + vm.r[1].m128_f32[0] * y + vm.r[2].m128_f32[0] * z + vm.r[3].m128_f32[0];
+  const auto vy = vm.r[0].m128_f32[1] * x + vm.r[1].m128_f32[1] * y + vm.r[2].m128_f32[1] * z + vm.r[3].m128_f32[1];
+  const auto vw = vm.r[0].m128_f32[3] * x + vm.r[1].m128_f32[3] * y + vm.r[2].m128_f32[3] * z + vm.r[3].m128_f32[3];
 #endif
   // clang-format on
   if (vw < 0.0001f) {
@@ -178,5 +181,24 @@ inline std::optional<XMFLOAT2> project(const XMMATRIX& vm, const XMFLOAT3& v, in
   }
   return XMFLOAT2{ sx, sy };
 }
+
+inline XMVECTOR camera(const XMMATRIX& vm) noexcept
+{
+  const auto v = XMMatrixInverse(nullptr, vm);
+  const auto w = XMVectorGetW(v.r[2]);
+  if (w < 0.0001f) {
+    return XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+  }
+  const auto x = XMVectorGetX(v.r[2]);
+  const auto y = XMVectorGetY(v.r[2]);
+  const auto z = XMVectorGetZ(v.r[2]);
+  return XMVectorSet(x / w, y / w, z / w, 0.0f);
+}
+
+// Arrow drop per meter.
+inline const XMVECTOR arrow_drop{ XMVectorSet(0.0f, 0.019f, 0.0f, 0.0f) };
+
+// How many seconds it takes an arrow to travel a meter.
+constexpr float arrow_speed{ 0.01116f };
 
 }  // namespace epos::overwatch::game

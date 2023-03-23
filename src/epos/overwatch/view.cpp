@@ -111,6 +111,11 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   create_format(L"Roboto Mono", 12.0f, FALSE, &formats_.report);
   formats_.status->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
 
+  // Initialize movement array.
+  for (std::size_t i = 0; i < game::entities; i++) {
+    movement_[i] = boost::circular_buffer<snapshot>(16);
+  }
+
   // Create device.
   if (const auto rv = device_.create(); !rv) {
     throw std::system_error(rv.error(), "create");
@@ -141,6 +146,9 @@ overlay::command view::render() noexcept
   auto scene_done_updated_expected = true;
   if (scene_done_updated_.compare_exchange_weak(scene_done_updated_expected, false)) {
     scene_draw_ = scene_done_.exchange(scene_draw_);
+    for (std::size_t i = 0; i < scene_draw_->entities; i++) {
+      movement_[i].clear();
+    }
   }
 
   // Clear scene.
@@ -157,7 +165,7 @@ overlay::command view::render() noexcept
   // Get input state.
   const auto state = input_.get_sync();
   mouse_.push_back({ state.mx / 4.0f, state.my / 4.0f });
-  DirectX::XMFLOAT2 mouse{};
+  XMFLOAT2 mouse{};
   for (const auto& e : mouse_) {
     mouse.x += e.x;
     mouse.y += e.y;
@@ -165,19 +173,7 @@ overlay::command view::render() noexcept
   mouse.x /= mouse_.size();
   mouse.y /= mouse_.size();
 
-  if (state.pressed(key::f10)) {
-    selected_entity_ = scene_draw_->entities;
-  } else if (state.pressed(key::f11)) {
-    if (selected_entity_ == 0) {
-      selected_entity_ = scene_draw_->entities;
-    } else {
-      selected_entity_--;
-    }
-  } else if (state.pressed(key::f12)) {
-    if (++selected_entity_ > scene_draw_->entities) {
-      selected_entity_ = 0;
-    }
-  } else if (state.pressed(key::pause)) {
+  if (state.pressed(key::pause)) {
     const auto team = team_.load(std::memory_order_relaxed);
     team_.store(team == game::team::one ? game::team::two : game::team::one, std::memory_order_release);
   }
@@ -190,33 +186,67 @@ overlay::command view::render() noexcept
     return command::none;
   }
 
+  // Get camera position.
+  const auto camera = game::camera(vm_);
+
+  // Get update movement time point.
+  const auto update_movement = tp0 > update_movement_;
+  update_movement_ = tp0 + 1ms;
+
   // Draw entities.
   for (std::size_t i = 0; i < scene_draw_->entities; i++) {
     if (!entities_[i]) {
+      movement_[i].clear();
       continue;
     }
-    const auto point = game::project(vm_, entities_[i].head(), sw, sh);
+
+    // Get target position.
+    auto target = entities_[i].head();
+    if (update_movement || movement_[i].empty()) {
+      movement_[i].push_back({ target, tp0 });
+    }
+
+    // Calculate distance to camera in meters.
+    auto m = XMVectorGetX(XMVector3Length(camera - target));
+
+    // Calculate arrow travel time in seconds.
+    auto s = m * game::arrow_speed;
+
+    // Calculate target position on arrow impact.
+    std::optional<XMFLOAT2> head;
+    if (movement_[i].size() > 1) {
+      head = game::project(vm_, target, sw, sh);
+      const auto& snapshot = movement_[i].front();
+      const auto scale = s / duration_cast<seconds>(tp0 - snapshot.time_point).count();
+      target += (target - snapshot.target) * scale;
+      m = XMVectorGetX(XMVector3Length(camera - target));
+      s = m * game::arrow_speed;
+    }
+
+    // Account for arrow drop.
+    target += m * game::arrow_drop;
+
+    // Project target.
+    const auto point = game::project(vm_, target, sw, sh);
     if (!point) {
       continue;
     }
-    const auto x = sx + point->x - mouse.x;
-    const auto y = sy + point->y - mouse.y;
-    const auto r = 5.0f;
-    const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
-    dc_->FillEllipse(e, brushes_.enemy.Get());
-    dc_->DrawEllipse(e, brushes_.black.Get());
-  }
 
-  // Draw origin.
-  if (const auto origin = game::project(vm_, {}, sw, sh)) {
-    const auto x = sx + origin->x - mouse.x;
-    const auto y = sy + origin->y - mouse.y;
-    const auto r = 8.0f;
-    const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
-    dc_->FillEllipse(e, brushes_.white.Get());
-    dc_->DrawEllipse(e, brushes_.black.Get());
-    string_.reset(L"ORIGIN");
-    string_label(x, y - 20, 64, 32, formats_.label, brushes_.white);
+    // Draw target.
+    const auto x0 = sx + point->x - mouse.x;
+    const auto y0 = sy + point->y - mouse.y;
+    const auto r0 = std::max(2.0f, std::sqrt(500.0f / m));
+    const auto e0 = D2D1::Ellipse(D2D1::Point2F(x0, y0), r0, r0);
+    if (head) {
+      const auto x1 = sx + head->x - mouse.x;
+      const auto y1 = sy + head->y - mouse.y;
+      dc_->DrawLine({ x0, y0 }, { x1, y1 }, brushes_.enemy.Get());
+    }
+    dc_->FillEllipse(e0, brushes_.enemy.Get());
+    dc_->DrawEllipse(e0, brushes_.black.Get());
+
+    //string_.reset(L"{:.1f}m ({:.03f}s)", m, s);
+    //string_label(x, y + 20, 63, 32, formats_.label, brushes_.white);
   }
 
   // Draw status.
@@ -261,7 +291,7 @@ overlay::command view::render() noexcept
   const auto y = sy + sh / 2;
   const auto r = 3.0f;
   const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
-  dc_->FillEllipse(e, brushes_.white.Get());
+  dc_->FillEllipse(e, state.down(button::left) ? brushes_.red.Get() : brushes_.white.Get());
   dc_->DrawEllipse(e, brushes_.black.Get());
 
   // Update draw duration.
