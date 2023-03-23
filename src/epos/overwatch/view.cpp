@@ -284,7 +284,7 @@ overlay::command view::render() noexcept
 #endif
 
     // Check if fire conditions are met.
-    if (fire || m >= trigger) {
+    if (fire || m >= trigger || state.down(key::control)) {
       continue;
     }
 
