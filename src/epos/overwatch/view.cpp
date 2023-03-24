@@ -69,6 +69,7 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   create_brush(dc_, 0x4FC3F7, 1.0f, &brushes_.blue);    //  300 Light Blue
   create_brush(dc_, 0xBDBDBD, 1.0f, &brushes_.gray);    //  400 Gray
   create_brush(dc_, 0xF5F5F5, 0.6f, &brushes_.info);    //  100 Gray
+  create_brush(dc_, 0x000000, 0.5f, &brushes_.frame);   // Full Black
   create_brush(dc_, 0xFAFAFA, 0.4f, &brushes_.spread);  //   50 Gray
 
   D2D1_GRADIENT_STOP gradient[2];
@@ -93,25 +94,25 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
     shade.Get(),
     &brushes_.report));
 
-  create_brush(dc_, 0xD50000, 0.1f, &brushes_.enemy[0]);  // A700 Red
-  create_brush(dc_, 0xD50000, 1.0f, &brushes_.enemy[1]);  // A700 Red
-  create_brush(dc_, 0xFFD180, 0.8f, &brushes_.enemy[2]);  // A100 Orange
-  create_brush(dc_, 0xFFE57F, 0.7f, &brushes_.enemy[3]);  // A100 Amber
-  create_brush(dc_, 0xFFFF8D, 0.6f, &brushes_.enemy[4]);  // A100 Yellow
-  create_brush(dc_, 0xF4FF81, 0.5f, &brushes_.enemy[5]);  // A100 Lime
-  create_brush(dc_, 0xCCFF90, 0.4f, &brushes_.enemy[6]);  // A100 Light Green
-  create_brush(dc_, 0xECEFF1, 0.3f, &brushes_.enemy[7]);  //   50 Blue Gray
-  create_brush(dc_, 0xFAFAFA, 0.2f, &brushes_.enemy[8]);  //   50 Gray
+  create_brush(dc_, 0xD50000, 0.1f, &brushes_.target[0]);  // A700 Red
+  create_brush(dc_, 0xFF5252, 0.5f, &brushes_.target[1]);  // A200 Red
+  create_brush(dc_, 0xFF8A80, 0.8f, &brushes_.target[2]);  // A100 Red
+  create_brush(dc_, 0xFF9E80, 0.7f, &brushes_.target[3]);  // A100 Deep Orange
+  create_brush(dc_, 0xFFD180, 0.6f, &brushes_.target[4]);  // A100 Orange
+  create_brush(dc_, 0xFFE57F, 0.5f, &brushes_.target[5]);  // A100 Amber
+  create_brush(dc_, 0xFFFF8D, 0.4f, &brushes_.target[6]);  // A100 Yellow
+  create_brush(dc_, 0xEFEBE9, 0.3f, &brushes_.target[7]);  //   50 Brown
+  create_brush(dc_, 0xFAFAFA, 0.2f, &brushes_.target[8]);  //   50 Gray
 
-  create_brush(dc_, 0x00E5FF, 0.1f, &brushes_.party[0]);  // A400 Cyan
-  create_brush(dc_, 0x00E5FF, 1.0f, &brushes_.party[1]);  // A400 Cyan
-  create_brush(dc_, 0xA7FFEB, 0.8f, &brushes_.party[2]);  // A100 Teal
-  create_brush(dc_, 0xB9F6CA, 0.7f, &brushes_.party[3]);  // A100 Green
-  create_brush(dc_, 0xCCFF90, 0.6f, &brushes_.party[4]);  // A100 Light Green
-  create_brush(dc_, 0xF4FF81, 0.5f, &brushes_.party[5]);  // A100 Lime
-  create_brush(dc_, 0xFFFF8D, 0.4f, &brushes_.party[6]);  // A100 Yellow
-  create_brush(dc_, 0xECEFF1, 0.3f, &brushes_.party[7]);  //   50 Blue Gray
-  create_brush(dc_, 0xFAFAFA, 0.2f, &brushes_.party[8]);  //   50 Gray
+  create_brush(dc_, 0xD500F9, 0.1f, &brushes_.tank[0]);  // A400 Purple
+  create_brush(dc_, 0xE040FB, 0.5f, &brushes_.tank[1]);  // A200 Purple
+  create_brush(dc_, 0xEA80FC, 0.8f, &brushes_.tank[2]);  // A100 Purple
+  create_brush(dc_, 0xB388FF, 0.7f, &brushes_.tank[3]);  // A100 Deep Purple
+  create_brush(dc_, 0x8C9EFF, 0.6f, &brushes_.tank[4]);  // A100 Indigo
+  create_brush(dc_, 0x82B1FF, 0.5f, &brushes_.tank[5]);  // A100 Blue
+  create_brush(dc_, 0x80D8FF, 0.4f, &brushes_.tank[6]);  // A100 Light Blue
+  create_brush(dc_, 0xECEFF1, 0.3f, &brushes_.tank[7]);  //   50 Blue Gray
+  create_brush(dc_, 0xFAFAFA, 0.2f, &brushes_.tank[8]);  //   50 Gray
 
   // Create formats.
   const auto create_format = [this](LPCWSTR name, FLOAT size, BOOL bold, IDWriteTextFormat** format) {
@@ -207,10 +208,8 @@ overlay::command view::render() noexcept
 
   // Handle hero.
   if (reaper_) {
-    status_.reset(L"reaper\n");
     reaper(tp0, state, mouse);
   } else {
-    status_.reset(L"widowmaker\n");
     widowmaker(tp0, state, mouse);
   }
 
@@ -248,7 +247,8 @@ overlay::command view::render() noexcept
   info_.clear();
   const auto draw_ms = duration_cast<milliseconds>(tp0 - draw_).count();
   const auto swap_ms = duration_cast<milliseconds>(swap_duration_).count();
-  std::format_to(std::back_inserter(info_), L"{:.03f} ms draw\n{:.03f} ms swap", draw_ms, swap_ms);
+  std::format_to(std::back_inserter(info_), L"{:.03f}\n{:.03f}\n", draw_ms, swap_ms);
+  info_.append(reaper_ ? L"reaper" : L"widowmaker");
   draw(dc_, info_, region::text::duration, formats_.status, brushes_.info);
 
   // Update draw duration.
@@ -445,7 +445,7 @@ boost::asio::awaitable<void> view::run() noexcept
       if (!changed && std::equal(offsets.begin(), offsets.end(), watch.begin(), compare)) {
         scene_work_->entities = entities;
         scene_work_->vm = true;
-        co_await update(3s);
+        co_await update(1s);
         continue;
       }
 

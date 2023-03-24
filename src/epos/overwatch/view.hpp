@@ -60,7 +60,7 @@ public:
       };
       static constexpr D2D1_RECT_F duration{
         region::report.left,
-        region::report.bottom - my - 32,
+        region::report.bottom - my - 50,
         region::report.right - mx,
         region::report.bottom - my,
       };
@@ -130,11 +130,12 @@ private:
     ComPtr<ID2D1SolidColorBrush> blue;
     ComPtr<ID2D1SolidColorBrush> gray;
     ComPtr<ID2D1SolidColorBrush> info;
+    ComPtr<ID2D1SolidColorBrush> frame;
     ComPtr<ID2D1SolidColorBrush> spread;
     ComPtr<ID2D1LinearGradientBrush> status;
     ComPtr<ID2D1LinearGradientBrush> report;
-    std::array<ComPtr<ID2D1SolidColorBrush>, 9> enemy;
-    std::array<ComPtr<ID2D1SolidColorBrush>, 9> party;
+    std::array<ComPtr<ID2D1SolidColorBrush>, 9> target;
+    std::array<ComPtr<ID2D1SolidColorBrush>, 9> tank;
   } brushes_;
 
   struct formats {

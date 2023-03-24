@@ -21,6 +21,13 @@ constexpr std::intptr_t entities = 255;
 
 using namespace DirectX;
 
+struct target {
+  XMVECTOR top{};
+  XMVECTOR mid{};
+  float ratio{ 1.0f };
+  bool tank{ false };
+};
+
 #pragma pack(push, 1)
 
 enum class team : BYTE {
@@ -41,44 +48,57 @@ struct entity {
   std::array<std::uint32_t, 8> unknown3{};
 #endif
 
-  XMVECTOR top() const noexcept
-  {
-    return XMVectorSet((p0.x + p1.x) / 2.0f, p1.y, (p0.z + p1.z) / 2.0f, 0.0f);
-  }
+  //XMVECTOR top() const noexcept
+  //{
+  //  return XMVectorSet((p0.x + p1.x) / 2.0f, p1.y, (p0.z + p1.z) / 2.0f, 0.0f);
+  //}
 
-  XMVECTOR mid() const noexcept
-  {
-    return XMVectorSet((p0.x + p1.x) / 2.0f, (p0.y + p1.y) / 2.0f, (p0.z + p1.z) / 2.0f, 0.0f);
-  }
+  //XMVECTOR mid() const noexcept
+  //{
+  //  return XMVectorSet((p0.x + p1.x) / 2.0f, (p0.y + p1.y) / 2.0f, (p0.z + p1.z) / 2.0f, 0.0f);
+  //}
 
-  XMVECTOR bottom() const noexcept
-  {
-    return XMVectorSet((p0.x + p1.x) / 2.0f, p0.y, (p0.z + p1.z) / 2.0f, 0.0f);
-  }
+  //XMVECTOR bottom() const noexcept
+  //{
+  //  return XMVectorSet((p0.x + p1.x) / 2.0f, p0.y, (p0.z + p1.z) / 2.0f, 0.0f);
+  //}
 
-  XMVECTOR head() const noexcept
+  game::target target() const noexcept
   {
-    XMFLOAT3 point{};
-    XMStoreFloat3(&point, top());
-    const auto eh = height();
-    if (eh < 1.10f) {
-      // 1.05 | 1.00 -> 0.40
+    const auto w = width();
+    const auto h = height();
+
+    bool tank = false;
+    auto ratio = 0.30f;
+    XMFLOAT3 top{ (p0.x + p1.x) / 2.0f, p1.y, (p0.z + p1.z) / 2.0f };
+    XMFLOAT3 mid{ (p0.x + p1.x) / 2.0f, (p0.y + p1.y) / 2.0f, (p0.z + p1.z) / 2.0f };
+    if (h < 1.10f) {
+      // 1.05 | 1.00
       // 0.25 - 0.45 TORBJÖRN
-      point.y -= eh * 0.40f;
-    } else if (eh < 1.40f) {
-      // 1.30 | 1.00 -> 0.15
+      top.y -= h * 0.38f;
+      mid.y -= h * 0.40f;
+      ratio = 0.60f;
+    } else if (h < 1.40f) {
+      // 1.30 | 1.00
       // 0.00 - 0.20 BRIGITTE
-      point.y -= eh * 0.15f;
-    } else if (eh < 1.49f) {
-      // 1.47 | 1.40 -> 0.30
+      top.y -= h * 0.06f;
+      ratio = 0.40f;
+    } else if (h < 1.49f) {
+      // 1.47 | 1.40
       // 0.15 - 0.45 WRECKING BALL
-      point.y -= eh * 0.30f;
-    } else if (eh < 1.55f && width() > 1.30f) {
-      // 1.50 | 1.40 -> 0.25
+      top.y -= h * 0.25f;
+      mid.y -= h * 0.39f;
+      ratio = 0.35f;
+      tank = true;
+    } else if (h < 1.55f && w > 1.30f) {
+      // 1.50 | 1.40
       // 0.15 - 0.35 D.VA
-      point.y -= eh * 0.25f;
-    } else if (eh < 1.55f) {
-      // 1.50 | 1.00 -> 0.50
+      top.y -= h * 0.16f;
+      mid.y += h * 0.05f;
+      ratio = 1.20f;
+      tank = true;
+    } else if (h < 1.55f) {
+      // 1.50 | 1.00
       // 0.00 - 0.15 JUNKER QUEEN
       // 0.00 - 0.20 ZARYA
       // 0.10 - 0.30 ASHE
@@ -105,26 +125,33 @@ struct entity {
       // 0.00 - 0.20 MOIRA
       // 0.10 - 0.30 ZENYATTA
       // 0.00 - 0.15 (BOT)
-      point.y -= eh * 0.50f;
-    } else if (eh < 1.70f) {
-      // 1.60 | 1.00 -> 0.10
+      mid.y -= h * 0.10f;
+      mid.y += h * 0.20f;
+    } else if (h < 1.70f) {
+      // 1.60 | 1.00
       // 0.00 - 0.15 RAMATTRA
-      point.y -= eh * 0.10f;
-    } else if (eh < 1.90f) {
-      // 1.80 | 1.40 -> 0.25
+      top.y -= h * 0.05f;
+      mid.y += h * 0.10f;
+      ratio = 0.60f;
+      tank = true;
+    } else if (h < 1.90f) {
+      // 1.80 | 1.40
       // 0.25 - 0.35 DOOMFIST
       // 0.00 - 0.25 ORISA
       // 0.00 - 0.30 REINHARDT
       // 0.10 - 0.30 ROADHOG
       // 0.10 - 0.25 BASTION
-      point.y -= eh * 0.25f;
+      mid.y += h * 0.10f;
+      ratio = 0.60f;
+      tank = true;
     } else {
-      // 2.00 | 1.40 -> 0.15 - 0.35
+      // 2.00 | 1.40
       // 0.00 - 0.15 SIGMA
       // 0.35 - 0.35 WINSTON
-      point.y -= eh * 0.25f;
+      ratio = 0.50f;
+      tank = true;
     }
-    return XMVectorSet(point.x, point.y, point.z, 0.0f);
+    return { XMLoadFloat3(&top), XMLoadFloat3(&mid), w / h * ratio, tank };
   }
 
   constexpr float height() const noexcept

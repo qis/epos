@@ -37,28 +37,33 @@ void view::reaper(clock::time_point tp0, const epos::input::state& state, const 
     }
 
     // Get target.
-    auto target = e.mid();
+    auto target = e.target();
     if (update_movement || movement_[i].empty()) {
-      movement_[i].push_back({ target, tp0 });
-    }
-
-    // Calculate target offset for next frame.
-    auto offset = XMVectorSet(0.0f, e.height() * 0.15, 0.0f, 0.0f);
-    if (movement_[i].size() > 1) {
-      const auto& snapshot = movement_[i].front();
-      const auto time_scale = 8.0f / duration_cast<milliseconds>(tp0 - snapshot.time_point).count();
-      offset += (target - snapshot.target) * time_scale;
+      movement_[i].push_back({ target.mid, tp0 });
     }
 
     // Calculate distance to camera in meters.
-    auto m = XMVectorGetX(XMVector3Length(camera - target));
+    auto m = XMVectorGetX(XMVector3Length(camera - target.mid));
+    if (m < 0.9f) {
+      continue;
+    }
+
+    // Calculate movement vector for next frame.
+    const auto mv = [&]() noexcept {
+      if (movement_[i].size() > 1) {
+        const auto& snapshot = movement_[i].front();
+        const auto time_scale = 8.0f / duration_cast<milliseconds>(tp0 - snapshot.time_point).count();
+        return (target.mid - snapshot.target) * time_scale;
+      }
+      return XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+    }();
 
     // Project target points.
-    const auto top = game::project(vm_, e.top() + offset, sw, sh);
+    const auto top = game::project(vm_, target.top + mv, sw, sh);
     if (!top) {
       continue;
     }
-    const auto mid = game::project(vm_, target + offset, sw, sh);
+    const auto mid = game::project(vm_, target.mid + mv, sw, sh);
     if (!mid) {
       continue;
     }
@@ -67,26 +72,29 @@ void view::reaper(clock::time_point tp0, const epos::input::state& state, const 
     const auto x0 = mid->x - mouse.x;
     const auto y0 = mid->y - mouse.y;
     const auto r1 = mid->y - top->y;
-    const auto r0 = (e.width() / e.height()) * r1 * 0.6f;
+    const auto r0 = r1 * std::min(target.ratio * 2.0f, 1.0f);
     const auto e0 = D2D1::Ellipse(D2D1::Point2F(sx + x0, sy + y0), r0, r1);
+    const auto e1 = D2D1::Ellipse(D2D1::Point2F(sx + x0, sy + y0), r0 + 1.5f, r1 + 1.5f);
+
+    const auto& target_brushes = target.tank ? brushes_.tank : brushes_.target;
     if (m < trigger) {
-      dc_->DrawEllipse(e0, brushes_.black.Get(), 2.0f);
-      dc_->DrawEllipse(e0, brushes_.white.Get(), 1.6f);
-      dc_->DrawEllipse(e0, brushes_.enemy[1].Get(), 1.5f);
+      dc_->FillEllipse(e0, target_brushes[0].Get());
+      dc_->DrawEllipse(e0, target_brushes[1].Get(), 2.0f);
+      dc_->DrawEllipse(e1, brushes_.frame.Get());
     } else if (m < trigger * 1.2f) {
-      dc_->DrawEllipse(e0, brushes_.enemy[2].Get());
+      dc_->DrawEllipse(e0, target_brushes[2].Get());
     } else if (m < trigger * 1.4f) {
-      dc_->DrawEllipse(e0, brushes_.enemy[3].Get());
+      dc_->DrawEllipse(e0, target_brushes[3].Get());
     } else if (m < trigger * 1.6f) {
-      dc_->DrawEllipse(e0, brushes_.enemy[4].Get());
+      dc_->DrawEllipse(e0, target_brushes[4].Get());
     } else if (m < trigger * 1.8f) {
-      dc_->DrawEllipse(e0, brushes_.enemy[5].Get());
+      dc_->DrawEllipse(e0, target_brushes[5].Get());
     } else if (m < trigger * 2.0f) {
-      dc_->DrawEllipse(e0, brushes_.enemy[6].Get());
+      dc_->DrawEllipse(e0, target_brushes[6].Get());
     } else if (m < trigger * 2.2f) {
-      dc_->DrawEllipse(e0, brushes_.enemy[7].Get());
+      dc_->DrawEllipse(e0, target_brushes[7].Get());
     } else {
-      dc_->DrawEllipse(e0, brushes_.enemy[8].Get());
+      dc_->DrawEllipse(e0, target_brushes[8].Get());
     }
 
     // Create target label.
@@ -127,9 +135,12 @@ void view::reaper(clock::time_point tp0, const epos::input::state& state, const 
 
 void view::widowmaker(clock::time_point tp0, const epos::input::state& state, const XMFLOAT2& mouse) noexcept
 {
+  // Lockout duration on scope in and fire.
+  static constexpr auto lockout = 1100ms;
+
   // Handle input.
   if (state.pressed(button::right)) {
-    lockout_ = tp0 + 1300ms;  // 300ms for ana
+    lockout_ = tp0 + lockout;
   }
   if (state.up(button::right) && state.down(button::left) && tp0 > lockout_) {
     input_.mask(button::up, 64ms);
@@ -153,34 +164,33 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
     }
 
     // Get target.
-    auto target = e.mid();
+    auto target = e.target();
     if (update_movement || movement_[i].empty()) {
-      movement_[i].push_back({ target, tp0 });
+      movement_[i].push_back({ target.mid, tp0 });
     }
 
     // Calculate distance to camera in meters.
-    auto m = XMVectorGetX(XMVector3Length(camera - target));
+    auto m = XMVectorGetX(XMVector3Length(camera - target.mid));
     if (m < 0.9f) {
       continue;
     }
 
-    // Calculate target offsets for next frame.
-    auto otop = XMVectorSet(0.0f, e.height() * -0.15, 0.0f, 0.0f);
-    auto omid = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-    if (movement_[i].size() > 1) {
-      const auto& snapshot = movement_[i].front();
-      const auto time_scale = 8.0f / duration_cast<milliseconds>(tp0 - snapshot.time_point).count();
-      const auto offset = (target - snapshot.target) * time_scale;
-      otop += offset;
-      omid += offset;
-    }
+    // Calculate movement vector for next frame.
+    const auto mv = [&]() noexcept {
+      if (movement_[i].size() > 1) {
+        const auto& snapshot = movement_[i].front();
+        const auto time_scale = 8.0f / duration_cast<milliseconds>(tp0 - snapshot.time_point).count();
+        return (target.mid - snapshot.target) * time_scale;
+      }
+      return XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+    }();
 
     // Project target points.
-    const auto top = game::project(vm_, e.top() + otop, sw, sh);
+    const auto top = game::project(vm_, target.top + mv, sw, sh);
     if (!top) {
       continue;
     }
-    const auto mid = game::project(vm_, target + omid, sw, sh);
+    const auto mid = game::project(vm_, target.mid + mv, sw, sh);
     if (!mid) {
       continue;
     }
@@ -189,22 +199,20 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
     const auto x0 = mid->x - mouse.x;
     const auto y0 = mid->y - mouse.y;
     const auto r1 = mid->y - top->y;
-    const auto r0 = (e.width() / e.height()) * r1 * 0.4f;
+    const auto r0 = target.ratio * r1;
     const auto e0 = D2D1::Ellipse(D2D1::Point2F(sx + x0, sy + y0), r0, r1);
+    const auto e1 = D2D1::Ellipse(D2D1::Point2F(sx + x0, sy + y0), r0 + 1.5f, r1 + 1.5f);
 
-    const auto r2 = r0 + 0.8f;
-    const auto r3 = r1 + 0.8f;
-    const auto e1 = D2D1::Ellipse(D2D1::Point2F(sx + x0, sy + y0), r2, r3);
+    const auto& target_brushes = target.tank ? brushes_.tank : brushes_.target;
+    dc_->FillEllipse(e0, target_brushes[0].Get());
+    dc_->DrawEllipse(e0, target_brushes[1].Get(), 2.0f);
+    dc_->DrawEllipse(e1, brushes_.frame.Get());
 
-    if (e.team == team_) {
-      dc_->FillEllipse(e0, brushes_.party[0].Get());
-      dc_->DrawEllipse(e1, brushes_.black.Get(), 1.5f);
-      dc_->DrawEllipse(e0, brushes_.party[1].Get());
-    } else {
-      dc_->FillEllipse(e0, brushes_.enemy[0].Get());
-      dc_->DrawEllipse(e1, brushes_.black.Get(), 1.5f);
-      dc_->DrawEllipse(e0, brushes_.enemy[1].Get());
-    }
+    // Create target label.
+#ifndef NDEBUG
+    string_.reset(L"{:.0f}", m);
+    string_label(sx + x0, sy + y0, 32, 32, formats_.label, brushes_.white);
+#endif
 
     // Check if fire conditions are met.
     if (fire || tp0 < lockout_ || state.up(button::right) || state.up(button::left)) {
@@ -217,7 +225,7 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
       const auto ey = std::pow((sc.y + mouse.y * m - mid->y), 2.0f) / std::pow(r1, 2.0f);
       if (ex + ey < 1.0f) {
         input_.mask(button::up, 16ms);
-        lockout_ = tp0 + 1300ms;  // 128ms for ana
+        lockout_ = tp0 + lockout;
         fire = true;
         break;
       }
