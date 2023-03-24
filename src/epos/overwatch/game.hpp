@@ -8,6 +8,8 @@
 #include <cassert>
 #include <cstddef>
 
+#define EPOS_OVERWATCH_UNKNOWN 0
+
 namespace epos::overwatch::game {
 
 constexpr std::intptr_t vm{ 0x4172EA8 };
@@ -34,8 +36,10 @@ struct entity {
   team team{};
   std::array<std::byte, 2> unknown2{};
   BYTE live{};
+#if EPOS_OVERWATCH_UNKNOWN
   std::array<std::byte, entity_signature_size> signature{};
   std::array<std::uint32_t, 8> unknown3{};
+#endif
 
   XMVECTOR top() const noexcept
   {
@@ -139,9 +143,11 @@ struct entity {
   }
 };
 
-static_assert(
-  offsetof(entity, signature) - offsetof(entity, p0) == 0x9C,
-  "signature offset mismatch");
+#if EPOS_OVERWATCH_UNKNOWN
+static_assert(offsetof(entity, signature) - offsetof(entity, p0) == 0x9C);
+#else
+static_assert(sizeof(entity) == 0x9C);
+#endif
 
 #pragma pack(pop)
 

@@ -3,7 +3,7 @@
 
 namespace epos::overwatch {
 
-#if 0
+#if 1
 
 void view::hero(clock::time_point tp0, const epos::input::state& state, const XMFLOAT2& mouse) noexcept
 {
@@ -33,7 +33,7 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
   auto fire = false;
   for (std::size_t i = 0; i < scene_draw_->entities; i++) {
     const auto& e = entities_[i];
-    if (!e) {
+    if (!e || e.team == team_) {
       movement_[i].clear();
       continue;
     }
@@ -127,7 +127,7 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
   dc_->DrawEllipse(spread, brushes_.spread.Get());
 }
 
-#endif
+#elif 0
 
 void view::hero(clock::time_point tp0, const epos::input::state& state, const XMFLOAT2& mouse) noexcept
 {
@@ -158,7 +158,7 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
   auto fire = false;
   for (std::size_t i = 0; i < scene_draw_->entities; i++) {
     const auto& e = entities_[i];
-    if (!e) {
+    if (!e || e.team == team_) {
       movement_[i].clear();
       continue;
     }
@@ -298,5 +298,7 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
   dc_->FillEllipse(e, state.down(key::shift) ? brushes_.blue.Get() : brushes_.white.Get());
   dc_->DrawEllipse(e, brushes_.black.Get());
 }
+
+#endif
 
 }  // namespace epos::overwatch

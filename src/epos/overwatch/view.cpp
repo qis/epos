@@ -183,8 +183,7 @@ overlay::command view::render() noexcept
   mouse.y /= mouse_.size();
 
   if (state.pressed(key::pause)) {
-    const auto team = team_.load(std::memory_order_relaxed);
-    team_.store(team == game::team::one ? game::team::two : game::team::one, std::memory_order_release);
+    team_ = team_ == game::team::one ? game::team::two : game::team::one;
   }
 
   // Update memory.
@@ -378,7 +377,6 @@ boost::asio::awaitable<void> view::run() noexcept
       // Get offsets.
       offsets.clear();
       std::error_code ec;
-      const auto team = team_.load(std::memory_order_acquire);
       for (const auto& region : *regions) {
         const auto read = device_.read(region.base_address, memory_.data(), region_size);
         if (!read) {
@@ -391,11 +389,13 @@ boost::asio::awaitable<void> view::run() noexcept
             break;
           }
           const auto signature = region.base_address + i + pos;
-          if (signature >= region.base_address + offsetof(game::entity, signature)) {
-            const auto address = signature - offsetof(game::entity, signature);
-            if (device_.read(address, entity) && entity.team != team) {
-              offsets.push_back(address);
-            }
+#if EPOS_OVERWATCH_UNKNOWN
+          constexpr auto copy_size = offsetof(game::entity, signature);
+#else
+          constexpr auto copy_size = sizeof(game::entity);
+#endif
+          if (signature >= region.base_address + copy_size) {
+            offsets.push_back(signature - copy_size);
           }
           i += pos;
         }

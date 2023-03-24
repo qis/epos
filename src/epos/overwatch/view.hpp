@@ -203,7 +203,7 @@ private:
   std::array<boost::circular_buffer<snapshot>, game::entities> movement_;
   clock::time_point update_movement_{ clock::now() };
 
-  std::atomic<game::team> team_{ game::team::one };
+  game::team team_{ game::team::one };
   clock::time_point lockout_{ clock::now() };
 
   std::atomic_bool stop_{ false };
