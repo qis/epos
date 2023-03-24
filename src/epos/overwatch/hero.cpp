@@ -330,8 +330,9 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
       movement_[i].push_back({ target, tp0 });
     }
 
-    // Skip when not scoped in.
-    if (state.up(button::right)) {
+    // Calculate distance to camera in meters.
+    auto m = XMVectorGetX(XMVector3Length(camera - target));
+    if (m < 0.9f) {
       continue;
     }
 
@@ -378,7 +379,7 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
     }
 
     // Check if fire conditions are met.
-    if (fire || tp0 < lockout_) {
+    if (fire || tp0 < lockout_ || state.up(button::right)) {
       continue;
     }
 
