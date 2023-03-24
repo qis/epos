@@ -42,7 +42,7 @@ struct entity {
     return XMVectorSet((p0.x + p1.x) / 2.0f, p1.y, (p0.z + p1.z) / 2.0f, 0.0f);
   }
 
-  XMVECTOR center() const noexcept
+  XMVECTOR mid() const noexcept
   {
     return XMVectorSet((p0.x + p1.x) / 2.0f, (p0.y + p1.y) / 2.0f, (p0.z + p1.z) / 2.0f, 0.0f);
   }

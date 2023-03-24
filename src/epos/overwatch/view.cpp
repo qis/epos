@@ -93,15 +93,15 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
     shade.Get(),
     &brushes_.report));
 
-  create_brush(dc_, 0xD50000, 1.0f, &brushes_.enemy[0]);  // A700 Red
-  create_brush(dc_, 0xFFD180, 0.8f, &brushes_.enemy[1]);  // A100 Orange
-  create_brush(dc_, 0xFFE57F, 0.7f, &brushes_.enemy[2]);  // A100 Amber
-  create_brush(dc_, 0xFFFF8D, 0.6f, &brushes_.enemy[3]);  // A100 Yellow
-  create_brush(dc_, 0xF4FF81, 0.5f, &brushes_.enemy[4]);  // A100 Lime
-  create_brush(dc_, 0xCCFF90, 0.4f, &brushes_.enemy[5]);  // A100 Light Green
-  create_brush(dc_, 0xE8F5E9, 0.3f, &brushes_.enemy[6]);  //   50 Green
-  create_brush(dc_, 0xECEFF1, 0.2f, &brushes_.enemy[7]);  //   50 Blue Gray
-  create_brush(dc_, 0xFAFAFA, 0.1f, &brushes_.enemy[8]);  //   50 Gray
+  create_brush(dc_, 0xD50000, 0.1f, &brushes_.enemy[0]);  // A700 Red
+  create_brush(dc_, 0xD50000, 1.0f, &brushes_.enemy[1]);  // A700 Red
+  create_brush(dc_, 0xFFD180, 0.8f, &brushes_.enemy[2]);  // A100 Orange
+  create_brush(dc_, 0xFFE57F, 0.7f, &brushes_.enemy[3]);  // A100 Amber
+  create_brush(dc_, 0xFFFF8D, 0.6f, &brushes_.enemy[4]);  // A100 Yellow
+  create_brush(dc_, 0xF4FF81, 0.5f, &brushes_.enemy[5]);  // A100 Lime
+  create_brush(dc_, 0xCCFF90, 0.4f, &brushes_.enemy[6]);  // A100 Light Green
+  create_brush(dc_, 0xECEFF1, 0.3f, &brushes_.enemy[7]);  //   50 Blue Gray
+  create_brush(dc_, 0xFAFAFA, 0.2f, &brushes_.enemy[8]);  //   50 Gray
 
   // Create formats.
   const auto create_format = [this](LPCWSTR name, FLOAT size, BOOL bold, IDWriteTextFormat** format) {
