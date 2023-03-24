@@ -196,13 +196,23 @@ overlay::command view::render() noexcept
     team_ = team_ == game::team::one ? game::team::two : game::team::one;
   }
 
+  if (state.pressed(key::f12)) {
+    reaper_ = !reaper_;
+  }
+
   // Update memory.
   if (!scene_draw_->vm || !device_.update()) {
     return command::none;
   }
 
   // Handle hero.
-  hero(tp0, state, mouse);
+  if (reaper_) {
+    status_.reset(L"reaper\n");
+    reaper(tp0, state, mouse);
+  } else {
+    status_.reset(L"widowmaker\n");
+    widowmaker(tp0, state, mouse);
+  }
 
   // Draw status.
   if (status_) {

@@ -80,7 +80,8 @@ public:
   void presented() noexcept override;
 
 private:
-  void hero(clock::time_point tp0, const epos::input::state& state, const XMFLOAT2& mouse) noexcept;
+  void reaper(clock::time_point tp0, const epos::input::state& state, const XMFLOAT2& mouse) noexcept;
+  void widowmaker(clock::time_point tp0, const epos::input::state& state, const XMFLOAT2& mouse) noexcept;
 
   boost::asio::awaitable<void> update(std::chrono::steady_clock::duration wait) noexcept;
   boost::asio::awaitable<void> run() noexcept;
@@ -206,6 +207,7 @@ private:
 
   game::team team_{ game::team::one };
   clock::time_point lockout_{ clock::now() };
+  bool reaper_{ true };
 
   std::atomic_bool stop_{ false };
   boost::asio::io_context context_{ 1 };
