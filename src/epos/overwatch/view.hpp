@@ -110,7 +110,7 @@ private:
   }
 
   input input_;
-  boost::circular_buffer<XMFLOAT2> mouse_{ 3 };
+  boost::circular_buffer<XMFLOAT2> mouse_{ 4 };
 
   ComPtr<ID2D1Bitmap> outline_;
   ComPtr<ID2D1BitmapRenderTarget> outline_dc_;

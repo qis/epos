@@ -218,9 +218,13 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
     }
 
     // Press fire button if crosshair is inside ellipse or crosses the ellipse (lazy).
-    for (auto m = 1.0f; m < 6.1f; m += 1.0f) {
-      const auto ex = std::pow((sc.x + mouse.x * m - mid->x), 2.0f) / std::pow(r0, 2.0f);
-      const auto ey = std::pow((sc.y + mouse.y * m - mid->y), 2.0f) / std::pow(r1, 2.0f);
+    const auto o0 = sc.x - mid->x;
+    const auto o1 = sc.y - mid->y;
+    const auto r2 = std::pow(r0, 2.0f);
+    const auto r3 = std::pow(r1, 2.0f);
+    for (auto m = 1.0f; m < 15.1f; m += 2.0f) {
+      const auto ex = std::pow(o0 + mouse.x * m, 2.0f) / r2;
+      const auto ey = std::pow(o0 + mouse.y * m, 2.0f) / r3;
       if (ex + ey < 1.0f) {
         input_.mask(button::up, 16ms);
         lockout_ = tp0 + lockout;

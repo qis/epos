@@ -271,10 +271,6 @@ overlay::command view::render() noexcept
 
   // Update draw duration.
   draw_ = tp0;
-
-  if (draw_ms > 10.0f) {
-    return command::update;
-  }
   return command::update;
 }
 

@@ -123,23 +123,24 @@ void overlay::run() noexcept
       return cmd != command::none;
     });
     while (cmd == command::update) {
-      //dc_->BeginDraw();
-      //cmd = render();
-      //dc_->EndDraw();
-      //sc_->Present(0, DXGI_PRESENT_RESTART);
-      //do {
-      //  Sleep(1);
-      //  dc_->BeginDraw();
-      //  cmd = render();
-      //  dc_->EndDraw();
-      //} while (sc_->Present(0, DXGI_PRESENT_RESTART | DXGI_PRESENT_DO_NOT_WAIT) == DXGI_ERROR_WAS_STILL_DRAWING);
-
       dc_->BeginDraw();
       cmd = render();
       dc_->EndDraw();
       sc_->Present(0, DXGI_PRESENT_RESTART);
+      do {
+        Sleep(1);
+        dc_->BeginDraw();
+        cmd = render();
+        dc_->EndDraw();
+      } while (sc_->Present(0, DXGI_PRESENT_RESTART | DXGI_PRESENT_DO_NOT_WAIT) == DXGI_ERROR_WAS_STILL_DRAWING);
       presented();
-      Sleep(1);
+
+      //dc_->BeginDraw();
+      //cmd = render();
+      //dc_->EndDraw();
+      //sc_->Present(0, DXGI_PRESENT_RESTART);
+      //presented();
+      //Sleep(1);
 
       if (cmd != command::update) {
         break;
