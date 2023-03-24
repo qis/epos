@@ -94,25 +94,25 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
     shade.Get(),
     &brushes_.report));
 
-  create_brush(dc_, 0xD50000, 0.1f, &brushes_.target[0]);  // A700 Red
-  create_brush(dc_, 0xFF5252, 0.5f, &brushes_.target[1]);  // A200 Red
-  create_brush(dc_, 0xFF8A80, 0.8f, &brushes_.target[2]);  // A100 Red
-  create_brush(dc_, 0xFF9E80, 0.7f, &brushes_.target[3]);  // A100 Deep Orange
-  create_brush(dc_, 0xFFD180, 0.6f, &brushes_.target[4]);  // A100 Orange
-  create_brush(dc_, 0xFFE57F, 0.5f, &brushes_.target[5]);  // A100 Amber
-  create_brush(dc_, 0xFFFF8D, 0.4f, &brushes_.target[6]);  // A100 Yellow
-  create_brush(dc_, 0xEFEBE9, 0.3f, &brushes_.target[7]);  //   50 Brown
-  create_brush(dc_, 0xFAFAFA, 0.2f, &brushes_.target[8]);  //   50 Gray
+  create_brush(dc_, 0xD50000, 1.0f, &brushes_.target[0]);  // A700 Red
+  create_brush(dc_, 0xD50000, 0.1f, &brushes_.target[1]);  // A700 Red
+  create_brush(dc_, 0xFF5252, 0.5f, &brushes_.target[2]);  // A200 Red
+  create_brush(dc_, 0xFF8A80, 0.8f, &brushes_.target[3]);  // A100 Red
+  create_brush(dc_, 0xFF9E80, 0.7f, &brushes_.target[4]);  // A100 Deep Orange
+  create_brush(dc_, 0xFFD180, 0.6f, &brushes_.target[5]);  // A100 Orange
+  create_brush(dc_, 0xFFE57F, 0.5f, &brushes_.target[6]);  // A100 Amber
+  create_brush(dc_, 0xFFFF8D, 0.4f, &brushes_.target[7]);  // A100 Yellow
+  create_brush(dc_, 0xEFEBE9, 0.3f, &brushes_.target[8]);  //   50 Brown
 
-  create_brush(dc_, 0xD500F9, 0.1f, &brushes_.tank[0]);  // A400 Purple
-  create_brush(dc_, 0xE040FB, 0.5f, &brushes_.tank[1]);  // A200 Purple
-  create_brush(dc_, 0xEA80FC, 0.8f, &brushes_.tank[2]);  // A100 Purple
-  create_brush(dc_, 0xB388FF, 0.7f, &brushes_.tank[3]);  // A100 Deep Purple
-  create_brush(dc_, 0x8C9EFF, 0.6f, &brushes_.tank[4]);  // A100 Indigo
-  create_brush(dc_, 0x82B1FF, 0.5f, &brushes_.tank[5]);  // A100 Blue
-  create_brush(dc_, 0x80D8FF, 0.4f, &brushes_.tank[6]);  // A100 Light Blue
-  create_brush(dc_, 0xECEFF1, 0.3f, &brushes_.tank[7]);  //   50 Blue Gray
-  create_brush(dc_, 0xFAFAFA, 0.2f, &brushes_.tank[8]);  //   50 Gray
+  create_brush(dc_, 0xD500F9, 1.0f, &brushes_.tank[0]);  // A400 Purple
+  create_brush(dc_, 0xD500F9, 0.1f, &brushes_.tank[1]);  // A400 Purple
+  create_brush(dc_, 0xE040FB, 0.5f, &brushes_.tank[2]);  // A200 Purple
+  create_brush(dc_, 0xEA80FC, 0.8f, &brushes_.tank[3]);  // A100 Purple
+  create_brush(dc_, 0xB388FF, 0.7f, &brushes_.tank[4]);  // A100 Deep Purple
+  create_brush(dc_, 0x8C9EFF, 0.6f, &brushes_.tank[5]);  // A100 Indigo
+  create_brush(dc_, 0x82B1FF, 0.5f, &brushes_.tank[6]);  // A100 Blue
+  create_brush(dc_, 0x80D8FF, 0.4f, &brushes_.tank[7]);  // A100 Light Blue
+  create_brush(dc_, 0xECEFF1, 0.3f, &brushes_.tank[8]);  //   50 Blue Gray
 
   // Create formats.
   const auto create_format = [this](LPCWSTR name, FLOAT size, BOOL bold, IDWriteTextFormat** format) {
@@ -198,7 +198,17 @@ overlay::command view::render() noexcept
   }
 
   if (state.pressed(key::f12)) {
-    reaper_ = !reaper_;
+    switch (hero_) {
+    case game::hero::reaper:
+      hero_ = game::hero::widowmaker;
+      break;
+    case game::hero::widowmaker:
+      hero_ = game::hero::none;
+      break;
+    default:
+      hero_ = game::hero::reaper;
+      break;
+    }
   }
 
   // Update memory.
@@ -207,10 +217,13 @@ overlay::command view::render() noexcept
   }
 
   // Handle hero.
-  if (reaper_) {
+  switch (hero_) {
+  case game::hero::reaper:
     reaper(tp0, state, mouse);
-  } else {
+    break;
+  case game::hero::widowmaker:
     widowmaker(tp0, state, mouse);
+    break;
   }
 
   // Draw status.
@@ -245,14 +258,23 @@ overlay::command view::render() noexcept
 
   // Draw info.
   info_.clear();
+  if (hero_ == game::hero::none) {
+    info_.push_back(L'\n');
+  }
   const auto draw_ms = duration_cast<milliseconds>(tp0 - draw_).count();
   const auto swap_ms = duration_cast<milliseconds>(swap_duration_).count();
   std::format_to(std::back_inserter(info_), L"{:.03f}\n{:.03f}\n", draw_ms, swap_ms);
-  info_.append(reaper_ ? L"reaper" : L"widowmaker");
+  if (hero_ != game::hero::none) {
+    info_.append(game::hero_name(hero_).data());
+  }
   draw(dc_, info_, region::text::duration, formats_.status, brushes_.info);
 
   // Update draw duration.
   draw_ = tp0;
+
+  if (draw_ms > 10.0f) {
+    return command::update;
+  }
   return command::update;
 }
 

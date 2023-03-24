@@ -78,20 +78,18 @@ void view::reaper(clock::time_point tp0, const epos::input::state& state, const 
 
     const auto& target_brushes = target.tank ? brushes_.tank : brushes_.target;
     if (m < trigger) {
-      dc_->FillEllipse(e0, target_brushes[0].Get());
-      dc_->DrawEllipse(e0, target_brushes[1].Get(), 2.0f);
+      dc_->FillEllipse(e0, target_brushes[1].Get());
+      dc_->DrawEllipse(e0, target_brushes[2].Get(), 2.0f);
       dc_->DrawEllipse(e1, brushes_.frame.Get());
     } else if (m < trigger * 1.2f) {
-      dc_->DrawEllipse(e0, target_brushes[2].Get());
-    } else if (m < trigger * 1.4f) {
       dc_->DrawEllipse(e0, target_brushes[3].Get());
-    } else if (m < trigger * 1.6f) {
+    } else if (m < trigger * 1.4f) {
       dc_->DrawEllipse(e0, target_brushes[4].Get());
-    } else if (m < trigger * 1.8f) {
+    } else if (m < trigger * 1.6f) {
       dc_->DrawEllipse(e0, target_brushes[5].Get());
-    } else if (m < trigger * 2.0f) {
+    } else if (m < trigger * 1.8f) {
       dc_->DrawEllipse(e0, target_brushes[6].Get());
-    } else if (m < trigger * 2.2f) {
+    } else if (m < trigger * 2.0f) {
       dc_->DrawEllipse(e0, target_brushes[7].Get());
     } else {
       dc_->DrawEllipse(e0, target_brushes[8].Get());
@@ -100,7 +98,7 @@ void view::reaper(clock::time_point tp0, const epos::input::state& state, const 
     // Create target label.
 #ifndef NDEBUG
     string_.reset(L"{:.0f}", m);
-    string_label(sx + x0, sy + y0, 32, 32, formats_.label, brushes_.white);
+    string_label(sx + x0, sy + y0, 32, 32, formats_.label, target_brushes[0]);
 #endif
 
     // Check if fire conditions are met.
@@ -204,14 +202,14 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
     const auto e1 = D2D1::Ellipse(D2D1::Point2F(sx + x0, sy + y0), r0 + 1.5f, r1 + 1.5f);
 
     const auto& target_brushes = target.tank ? brushes_.tank : brushes_.target;
-    dc_->FillEllipse(e0, target_brushes[0].Get());
-    dc_->DrawEllipse(e0, target_brushes[1].Get(), 2.0f);
+    dc_->FillEllipse(e0, target_brushes[1].Get());
+    dc_->DrawEllipse(e0, target_brushes[2].Get(), 2.0f);
     dc_->DrawEllipse(e1, brushes_.frame.Get());
 
     // Create target label.
 #ifndef NDEBUG
     string_.reset(L"{:.0f}", m);
-    string_label(sx + x0, sy + y0, 32, 32, formats_.label, brushes_.white);
+    string_label(sx + x0, sy + y0, 32, 32, formats_.label, target_brushes[0]);
 #endif
 
     // Check if fire conditions are met.

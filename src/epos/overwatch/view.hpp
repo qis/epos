@@ -208,7 +208,7 @@ private:
 
   game::team team_{ game::team::one };
   clock::time_point lockout_{ clock::now() };
-  bool reaper_{ true };
+  game::hero hero_{ game::hero::none };
 
   std::atomic_bool stop_{ false };
   boost::asio::io_context context_{ 1 };
