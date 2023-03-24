@@ -400,7 +400,7 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
   const auto y = sy + sc.y;
   const auto r = 3.0f;
   const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
-  dc_->FillEllipse(e, state.down(button::left) ? brushes_.blue.Get() : brushes_.white.Get());
+  dc_->FillEllipse(e, brushes_.white.Get());
   dc_->DrawEllipse(e, brushes_.black.Get());
 }
 
