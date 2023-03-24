@@ -330,6 +330,11 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
       movement_[i].push_back({ target, tp0 });
     }
 
+    // Skip when not scoped in.
+    if (state.up(button::right)) {
+      continue;
+    }
+
     // Calculate target offsets for next frame.
     auto otop = XMVectorSet(0.0f, e.height() * -0.15, 0.0f, 0.0f);
     auto omid = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
@@ -373,17 +378,20 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
     }
 
     // Check if fire conditions are met.
-    if (fire || state.up(button::left) || tp0 < lockout_) {
+    if (fire || tp0 < lockout_) {
       continue;
     }
 
-    // Press fire button if crosshair is inside ellipse.
-    const auto ex = std::pow((sc.x - mid->x), 2.0f) / std::pow(r0, 2.0f);
-    const auto ey = std::pow((sc.y - mid->y), 2.0f) / std::pow(r1, 2.0f);
-    if (ex + ey < 1.0f) {
-      input_.mask(button::up, 16ms);
-      lockout_ = tp0 + 128ms;
-      fire = true;
+    // Press fire button if crosshair is inside ellipse or crosses the ellipse (lazy).
+    for (auto m = 1.0f; m < 6.1f; m += 1.0f) {
+      const auto ex = std::pow((sc.x + mouse.x * m - mid->x), 2.0f) / std::pow(r0, 2.0f);
+      const auto ey = std::pow((sc.y + mouse.y * m - mid->y), 2.0f) / std::pow(r1, 2.0f);
+      if (ex + ey < 1.0f) {
+        input_.mask(button::up, 16ms);
+        lockout_ = tp0 + 128ms;
+        fire = true;
+        break;
+      }
     }
   }
 
