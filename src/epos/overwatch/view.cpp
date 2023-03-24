@@ -103,6 +103,16 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   create_brush(dc_, 0xECEFF1, 0.3f, &brushes_.enemy[7]);  //   50 Blue Gray
   create_brush(dc_, 0xFAFAFA, 0.2f, &brushes_.enemy[8]);  //   50 Gray
 
+  create_brush(dc_, 0x00E5FF, 0.1f, &brushes_.party[0]);  // A400 Cyan
+  create_brush(dc_, 0x00E5FF, 1.0f, &brushes_.party[1]);  // A400 Cyan
+  create_brush(dc_, 0xA7FFEB, 0.8f, &brushes_.party[2]);  // A100 Teal
+  create_brush(dc_, 0xB9F6CA, 0.7f, &brushes_.party[3]);  // A100 Green
+  create_brush(dc_, 0xCCFF90, 0.6f, &brushes_.party[4]);  // A100 Light Green
+  create_brush(dc_, 0xF4FF81, 0.5f, &brushes_.party[5]);  // A100 Lime
+  create_brush(dc_, 0xFFFF8D, 0.4f, &brushes_.party[6]);  // A100 Yellow
+  create_brush(dc_, 0xECEFF1, 0.3f, &brushes_.party[7]);  //   50 Blue Gray
+  create_brush(dc_, 0xFAFAFA, 0.2f, &brushes_.party[8]);  //   50 Gray
+
   // Create formats.
   const auto create_format = [this](LPCWSTR name, FLOAT size, BOOL bold, IDWriteTextFormat** format) {
     constexpr auto style = DWRITE_FONT_STYLE_NORMAL;

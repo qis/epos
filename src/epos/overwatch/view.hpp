@@ -133,6 +133,7 @@ private:
     ComPtr<ID2D1LinearGradientBrush> status;
     ComPtr<ID2D1LinearGradientBrush> report;
     std::array<ComPtr<ID2D1SolidColorBrush>, 9> enemy;
+    std::array<ComPtr<ID2D1SolidColorBrush>, 9> party;
   } brushes_;
 
   struct formats {
