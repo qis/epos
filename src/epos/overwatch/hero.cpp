@@ -22,6 +22,7 @@ void view::reaper(clock::time_point tp, const epos::input::state& state, const X
   // Handle input.
   if (state.pressed(key::e) || state.pressed(key::shift)) {
     primary_ = tp + 1280ms;
+    melee_ = tp + 1500ms;
   }
 
   if (state.down(button::left)) {
@@ -123,12 +124,12 @@ void view::reaper(clock::time_point tp, const epos::input::state& state, const X
     const auto rs = spread.radiusX;
     if (ex + ey < 1.0f || (ey < 1.0f && x0 - r0 > sc.x - rs && x0 + r0 < sc.x + rs)) {
       // Inject primary fire.
-      if (tp > primary_ && (m < 2.0f || state.down(button::right))) {
+      if (tp > primary_ && (m < 1.3f || state.down(button::right))) {
         input_.mask(button::up, 16ms);
         primary_ = tp + lockout;
       }
       // Inject melee.
-      if (tp > melee_ && (m < 2.0f || (state.down(button::right) && m < 3.0f))) {
+      if (tp > melee_ && (m < 1.3f || (state.down(button::right) && m < 2.5f))) {
         input_.mask(button::down, 16ms, 32ms);
         melee_ = tp + 1500ms;
       }
