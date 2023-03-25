@@ -2,9 +2,17 @@
 #include <cmath>
 
 namespace epos::overwatch {
+namespace {
 
-void view::reaper(clock::time_point tp0, const epos::input::state& state, const XMFLOAT2& mouse) noexcept
+static const auto movement_scale = XMVectorSet(1.0f, 0.6f, 1.0f, 1.0f);
+
+}  // namespace
+
+void view::reaper(clock::time_point tp, const epos::input::state& state, const XMFLOAT2& mouse) noexcept
 {
+  // Lockout duration on scope in and primary fire.
+  static constexpr auto lockout = 128ms;
+
   // Weapon spread.
   static const D2D1_ELLIPSE spread{ D2D1::Ellipse(D2D1::Point2F(sx + sc.x, sy + sc.y), 80.0f, 80.0f) };
 
@@ -13,22 +21,25 @@ void view::reaper(clock::time_point tp0, const epos::input::state& state, const 
 
   // Handle input.
   if (state.pressed(key::e) || state.pressed(key::shift)) {
-    lockout_ = tp0 + 1280ms;
+    primary_ = tp + 1280ms;
   }
 
   if (state.down(button::left)) {
-    lockout_ = tp0 + 64ms;
+    primary_ = tp + lockout;
+  }
+
+  if (state.pressed(key::c)) {
+    melee_ = tp + 1500ms;
   }
 
   // Get camera position.
   const auto camera = game::camera(vm_);
 
   // Get update movement time point.
-  const auto update_movement = tp0 > update_movement_;
-  update_movement_ = tp0 + 1ms;
+  const auto update_movement = tp > update_movement_;
+  update_movement_ = tp + 1ms;
 
   // Draw entities.
-  auto fire = false;
   for (std::size_t i = 0; i < scene_draw_->entities; i++) {
     const auto& e = entities_[i];
     if (!e || e.team == team_) {
@@ -39,7 +50,7 @@ void view::reaper(clock::time_point tp0, const epos::input::state& state, const 
     // Get target.
     auto target = e.target();
     if (update_movement || movement_[i].empty()) {
-      movement_[i].push_back({ target.mid, tp0 });
+      movement_[i].push_back({ target.mid, tp });
     }
 
     // Calculate distance to camera in meters.
@@ -52,8 +63,8 @@ void view::reaper(clock::time_point tp0, const epos::input::state& state, const 
     const auto mv = [&]() noexcept {
       if (movement_[i].size() > 1) {
         const auto& snapshot = movement_[i].front();
-        const auto time_scale = 8.0f / duration_cast<milliseconds>(tp0 - snapshot.time_point).count();
-        return (target.mid - snapshot.target) * time_scale;
+        const auto time_scale = 8.0f / duration_cast<milliseconds>(tp - snapshot.time_point).count();
+        return (target.mid - snapshot.target) * movement_scale * time_scale;
       }
       return XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
     }();
@@ -101,21 +112,26 @@ void view::reaper(clock::time_point tp0, const epos::input::state& state, const 
     string_label(sx + x0, sy + y0, 32, 32, formats_.label, target_brushes[0]);
 #endif
 
-    // Check if fire conditions are met.
-    if (fire || m >= trigger || state.down(key::control)) {
+    // Check if primary fire or melee is allowed.
+    if (m > trigger || state.down(key::control)) {
       continue;
     }
 
-    // Press fire button if crosshair is inside ellipse or ellipse is inside spread.
+    // Press primary fire button if crosshair is inside ellipse or ellipse is inside spread.
     const auto ex = std::pow((sc.x - mid->x), 2.0f) / std::pow(r0, 2.0f);
     const auto ey = std::pow((sc.y - mid->y), 2.0f) / std::pow(r1, 2.0f);
     const auto rs = spread.radiusX;
     if (ex + ey < 1.0f || (ey < 1.0f && x0 - r0 > sc.x - rs && x0 + r0 < sc.x + rs)) {
-      if (tp0 > lockout_ && (m < 2.0f || state.down(button::right))) {
+      // Inject primary fire.
+      if (tp > primary_ && (m < 2.0f || state.down(button::right))) {
         input_.mask(button::up, 16ms);
-        lockout_ = tp0 + 128ms;
+        primary_ = tp + lockout;
       }
-      fire = true;
+      // Inject melee.
+      if (tp > melee_ && (m < 2.0f || (state.down(button::right) && m < 3.0f))) {
+        input_.mask(button::down, 16ms, 32ms);
+        melee_ = tp + 1500ms;
+      }
     }
   }
 
@@ -133,16 +149,16 @@ void view::reaper(clock::time_point tp0, const epos::input::state& state, const 
 
 void view::widowmaker(clock::time_point tp0, const epos::input::state& state, const XMFLOAT2& mouse) noexcept
 {
-  // Lockout duration on scope in and fire.
+  // Lockout duration on scope in and primary fire.
   static constexpr auto lockout = 1100ms;
 
   // Handle input.
   if (state.pressed(button::right)) {
-    lockout_ = tp0 + lockout;
+    primary_ = tp0 + lockout;
   }
-  if (state.up(button::right) && state.down(button::left) && tp0 > lockout_) {
+  if (state.up(button::right) && state.down(button::left) && tp0 > primary_) {
     input_.mask(button::up, 64ms);
-    lockout_ = tp0 + 32ms;
+    primary_ = tp0 + 32ms;
   }
 
   // Get camera position.
@@ -174,7 +190,6 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
     }
 
     // Calculate movement vector for next frame.
-    static const auto movement_scale = XMVectorSet(1.0f, 0.6f, 1.0f, 1.0f);
     const auto mv = [&]() noexcept {
       if (movement_[i].size() > 1) {
         const auto& snapshot = movement_[i].front();
@@ -213,12 +228,12 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
     string_label(sx + x0, sy + y0, 32, 32, formats_.label, target_brushes[0]);
 #endif
 
-    // Check if fire conditions are met.
-    if (fire || tp0 < lockout_ || state.up(button::right) || state.up(button::left)) {
+    // Check if primary fire conditions are met.
+    if (fire || tp0 < primary_ || state.up(button::right) || state.up(button::left)) {
       continue;
     }
 
-    // Press fire button if crosshair is inside ellipse or crosses the ellipse (lazy).
+    // Press primary fire button if crosshair is inside ellipse or crosses the ellipse (lazy).
     const auto o0 = sc.x - mid->x;
     const auto o1 = sc.y - mid->y;
     const auto r2 = std::pow(r0, 2.0f);
@@ -228,7 +243,7 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
       const auto ey = std::pow(o0 + mouse.y * multiplier, 2.0f) / r3;
       if (ex + ey < 1.0f) {
         input_.mask(button::up, 16ms);
-        lockout_ = tp0 + lockout;
+        primary_ = tp0 + lockout;
         fire = true;
         break;
       }
@@ -246,7 +261,7 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
 
 #if 0
 
-void view::hero(clock::time_point tp0, const epos::input::state& state, const XMFLOAT2& mouse) noexcept
+void view::hero(clock::time_point tp, const epos::input::state& state, const XMFLOAT2& mouse) noexcept
 {
   // Whipshot speed in meters per second.
   static constexpr auto speed = 48.0f;
@@ -261,15 +276,15 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
 
   // Handle input.
   if (state.pressed(key::shift)) {
-    lockout_ = tp0 + 512ms;
+    lockout_ = tp + 512ms;
   }
 
   // Get camera position.
   const auto camera = game::camera(vm_);
 
   // Get update movement time point.
-  const auto update_movement = tp0 > update_movement_;
-  update_movement_ = tp0 + 1ms;
+  const auto update_movement = tp > update_movement_;
+  update_movement_ = tp + 1ms;
 
   // Draw entities.
   auto fire = false;
@@ -283,7 +298,7 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
     // Get target.
     auto target = e.mid();
     if (update_movement || movement_[i].empty()) {
-      movement_[i].push_back({ target, tp0 });
+      movement_[i].push_back({ target, tp });
     }
 
     // Calculate distance to camera in meters.
@@ -295,7 +310,7 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
     // Calculate target position offset on whipshot impact.
     if (movement_[i].size() > 1) {
       const auto& snapshot = movement_[i].front();
-      const auto scale = s / duration_cast<seconds>(tp0 - snapshot.time_point).count();
+      const auto scale = s / duration_cast<seconds>(tp - snapshot.time_point).count();
       const auto multiplier = XMVectorSet(scale, scale / 3.0f, scale, 1.0f);
       target += (target - snapshot.target) * multiplier;
       m = XMVectorGetX(XMVector3Length(camera - target));
@@ -393,7 +408,7 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
 #endif
 
     // Check if fire conditions are met.
-    if (fire || m >= range || state.up(key::shift) || tp0 < lockout_) {
+    if (fire || m >= range || state.up(key::shift) || tp < lockout_) {
       continue;
     }
 
@@ -402,7 +417,7 @@ void view::hero(clock::time_point tp0, const epos::input::state& state, const XM
     const auto ey = std::pow((sc.y - y1), 2.0f) / std::pow(r1 * 2.5f, 2.0f);
     if (ex + ey < 1.0f) {
       input_.mask(button::up, 16ms);
-      lockout_ = tp0 + 128ms;
+      lockout_ = tp + 128ms;
       fire = true;
     }
   }

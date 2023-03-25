@@ -114,6 +114,7 @@ void overlay::stop() noexcept
 
 void overlay::run() noexcept
 {
+  static constexpr UINT present{ DXGI_PRESENT_RESTART | DXGI_PRESENT_DO_NOT_WAIT };
   timeBeginPeriod(1);
   auto cmd = command::none;
   std::unique_lock lock{ mutex_ };
@@ -132,15 +133,8 @@ void overlay::run() noexcept
         dc_->BeginDraw();
         cmd = render();
         dc_->EndDraw();
-      } while (sc_->Present(0, DXGI_PRESENT_RESTART | DXGI_PRESENT_DO_NOT_WAIT) == DXGI_ERROR_WAS_STILL_DRAWING);
+      } while (sc_->Present(0, present) == DXGI_ERROR_WAS_STILL_DRAWING);
       presented();
-
-      //dc_->BeginDraw();
-      //cmd = render();
-      //dc_->EndDraw();
-      //sc_->Present(0, DXGI_PRESENT_RESTART);
-      //presented();
-      //Sleep(1);
 
       if (cmd != command::update) {
         break;
