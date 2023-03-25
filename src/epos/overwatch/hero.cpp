@@ -5,6 +5,8 @@ namespace epos::overwatch {
 namespace {
 
 static const auto movement_scale = XMVectorSet(1.0f, 0.6f, 1.0f, 1.0f);
+static const auto melee_lockout = 2000ms;
+static const auto power_lockout = 1280ms;
 
 }  // namespace
 
@@ -21,8 +23,8 @@ void view::reaper(clock::time_point tp, const epos::input::state& state, const X
 
   // Handle input.
   if (state.pressed(key::e) || state.pressed(key::shift)) {
-    primary_ = tp + 1280ms;
-    melee_ = tp + 1500ms;
+    primary_ = tp + power_lockout;
+    melee_ = tp + melee_lockout;
   }
 
   if (state.down(button::left)) {
@@ -30,7 +32,7 @@ void view::reaper(clock::time_point tp, const epos::input::state& state, const X
   }
 
   if (state.pressed(key::c)) {
-    melee_ = tp + 1500ms;
+    melee_ = tp + melee_lockout;
   }
 
   // Get camera position.
@@ -129,9 +131,9 @@ void view::reaper(clock::time_point tp, const epos::input::state& state, const X
         primary_ = tp + lockout;
       }
       // Inject melee.
-      if (tp > melee_ && (m < 1.3f || (state.down(button::right) && m < 2.5f))) {
+      if (!target.tank && tp > melee_ && (m < 1.3f || (state.down(button::right) && m < 2.5f))) {
         input_.mask(button::down, 16ms, 32ms);
-        melee_ = tp + 1500ms;
+        melee_ = tp + melee_lockout;
       }
     }
   }
