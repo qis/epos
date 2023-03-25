@@ -164,3 +164,6 @@ for (std::size_t i = 0; i < scene_draw_->entities; i++) {
   //string_label(x, y + 20, 63, 32, formats_.label, brushes_.white);
 }
 ```
+
+## TODO
+- Melee automation.

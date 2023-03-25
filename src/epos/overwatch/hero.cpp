@@ -174,11 +174,12 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
     }
 
     // Calculate movement vector for next frame.
+    static const auto movement_scale = XMVectorSet(1.0f, 0.6f, 1.0f, 1.0f);
     const auto mv = [&]() noexcept {
       if (movement_[i].size() > 1) {
         const auto& snapshot = movement_[i].front();
         const auto time_scale = 8.0f / duration_cast<milliseconds>(tp0 - snapshot.time_point).count();
-        return (target.mid - snapshot.target) * time_scale;
+        return (target.mid - snapshot.target) * movement_scale * time_scale;
       }
       return XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
     }();
@@ -222,9 +223,9 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
     const auto o1 = sc.y - mid->y;
     const auto r2 = std::pow(r0, 2.0f);
     const auto r3 = std::pow(r1, 2.0f);
-    for (auto m = 1.0f; m < 15.1f; m += 2.0f) {
-      const auto ex = std::pow(o0 + mouse.x * m, 2.0f) / r2;
-      const auto ey = std::pow(o0 + mouse.y * m, 2.0f) / r3;
+    for (auto multiplier = 1.0f; multiplier < 6.1f; multiplier += 1.0f) {
+      const auto ex = std::pow(o0 + mouse.x * multiplier * 2.0f, 2.0f) / r2;
+      const auto ey = std::pow(o0 + mouse.y * multiplier, 2.0f) / r3;
       if (ex + ey < 1.0f) {
         input_.mask(button::up, 16ms);
         lockout_ = tp0 + lockout;
