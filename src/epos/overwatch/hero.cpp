@@ -4,7 +4,6 @@
 namespace epos::overwatch {
 namespace {
 
-static const auto movement_scale = XMVectorSet(1.0f, 0.6f, 1.0f, 1.0f);
 static const auto melee_lockout = 2000ms;
 static const auto power_lockout = 1280ms;
 
@@ -52,9 +51,6 @@ void view::reaper(clock::time_point tp, const epos::input::state& state, const X
 
     // Get target.
     auto target = e.target();
-    if (update_movement || movement_[i].empty()) {
-      movement_[i].push_back({ target.mid, tp });
-    }
 
     // Calculate distance to camera in meters.
     auto m = XMVectorGetX(XMVector3Length(camera - target.mid));
@@ -63,14 +59,7 @@ void view::reaper(clock::time_point tp, const epos::input::state& state, const X
     }
 
     // Calculate movement vector for next frame.
-    const auto mv = [&]() noexcept {
-      if (movement_[i].size() > 1) {
-        const auto& snapshot = movement_[i].front();
-        const auto time_scale = 8.0f / duration_cast<milliseconds>(tp - snapshot.time_point).count();
-        return (target.mid - snapshot.target) * movement_scale * time_scale;
-      }
-      return XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-    }();
+    const auto mv = predict(i, tp, milliseconds(8.0f));
 
     // Project target points.
     const auto top = game::project(vm_, target.top + mv, sw, sh);
@@ -150,26 +139,15 @@ void view::reaper(clock::time_point tp, const epos::input::state& state, const X
   dc_->DrawEllipse(spread, brushes_.spread.Get());
 }
 
-void view::widowmaker(clock::time_point tp0, const epos::input::state& state, const XMFLOAT2& mouse) noexcept
+void view::symmetra(clock::time_point tp, const epos::input::state& state, const XMFLOAT2& mouse) noexcept
 {
-  // Lockout duration on scope in and primary fire.
-  static constexpr auto lockout = 1100ms;
-
-  // Handle input.
-  if (state.pressed(button::right)) {
-    primary_ = tp0 + lockout;
-  }
-  if (state.up(button::right) && state.down(button::left) && tp0 > primary_) {
-    input_.mask(button::up, 64ms);
-    primary_ = tp0 + 32ms;
-  }
+  // Whipshot speed in meters per second.
+  // The projectile travels 50m in 127 frames at 120 fps.
+  // 120 FPS / 127 frames * 50m = 47.2 m/s
+  static constexpr auto speed = 47.2f;
 
   // Get camera position.
   const auto camera = game::camera(vm_);
-
-  // Get update movement time point.
-  const auto update_movement = tp0 > update_movement_;
-  update_movement_ = tp0 + 1ms;
 
   // Draw entities.
   auto fire = false;
@@ -182,9 +160,92 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
 
     // Get target.
     auto target = e.target();
-    if (update_movement || movement_[i].empty()) {
-      movement_[i].push_back({ target.mid, tp0 });
+
+    // Calculate distance to camera in meters.
+    auto m = XMVectorGetX(XMVector3Length(camera - target.mid));
+    if (m < 0.9f) {
+      continue;
     }
+
+    // Calculate projectile travel time in milliseconds.
+    auto s = m / speed;
+
+    // Calculate movement vector for projectile impact.
+    const auto mv = predict(i, tp, seconds(s));
+    m = XMVectorGetX(XMVector3Length(camera - target.mid + mv));
+    s = m / speed;
+
+    // Project target points.
+    const auto top = game::project(vm_, target.top + mv, sw, sh);
+    if (!top) {
+      continue;
+    }
+    const auto mid = game::project(vm_, target.mid + mv, sw, sh);
+    if (!mid) {
+      continue;
+    }
+
+    // Draw target.
+    const auto x0 = mid->x - mouse.x;
+    const auto y0 = mid->y - mouse.y;
+    const auto r1 = mid->y - top->y;
+    const auto r0 = std::min(target.ratio * 2.0f, 1.0f);
+    const auto e0 = D2D1::Ellipse(D2D1::Point2F(sx + x0, sy + y0), r0, r1);
+    const auto e1 = D2D1::Ellipse(D2D1::Point2F(sx + x0, sy + y0), r0 + 1.5f, r1 + 1.5f);
+
+    const auto& target_brushes = target.tank ? brushes_.tank : brushes_.target;
+    dc_->FillEllipse(e0, target_brushes[1].Get());
+    dc_->DrawEllipse(e0, target_brushes[2].Get(), 2.0f);
+    dc_->DrawEllipse(e1, brushes_.frame.Get());
+
+    // Create target label.
+#ifndef NDEBUG
+    string_.reset(L"{:.3f}", m);
+    string_label(sx + x0, sy + y0, 128, 32, formats_.label, target_brushes[0]);
+#endif
+  }
+
+  // Draw crosshair.
+  const auto x = sx + sc.x;
+  const auto y = sy + sc.y;
+  const auto r = 3.0f;
+  const auto e = D2D1::Ellipse(D2D1::Point2F(x, y), r, r);
+  dc_->FillEllipse(e, state.down(button::right) ? brushes_.blue.Get() : brushes_.white.Get());
+  dc_->DrawEllipse(e, brushes_.black.Get());
+}
+
+void view::widowmaker(clock::time_point tp, const epos::input::state& state, const XMFLOAT2& mouse) noexcept
+{
+  // Lockout duration on scope in and primary fire.
+  static constexpr auto lockout = 1100ms;
+
+  // Handle input.
+  if (state.pressed(button::right)) {
+    primary_ = tp + lockout;
+  }
+  if (state.up(button::right) && state.down(button::left) && tp > primary_) {
+    input_.mask(button::up, 64ms);
+    primary_ = tp + 32ms;
+  }
+
+  // Get camera position.
+  const auto camera = game::camera(vm_);
+
+  // Get update movement time point.
+  const auto update_movement = tp > update_movement_;
+  update_movement_ = tp + 1ms;
+
+  // Draw entities.
+  auto fire = false;
+  for (std::size_t i = 0; i < scene_draw_->entities; i++) {
+    const auto& e = entities_[i];
+    if (!e || e.team == team_) {
+      movement_[i].clear();
+      continue;
+    }
+
+    // Get target.
+    auto target = e.target();
 
     // Calculate distance to camera in meters.
     auto m = XMVectorGetX(XMVector3Length(camera - target.mid));
@@ -193,14 +254,7 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
     }
 
     // Calculate movement vector for next frame.
-    const auto mv = [&]() noexcept {
-      if (movement_[i].size() > 1) {
-        const auto& snapshot = movement_[i].front();
-        const auto time_scale = 8.0f / duration_cast<milliseconds>(tp0 - snapshot.time_point).count();
-        return (target.mid - snapshot.target) * movement_scale * time_scale;
-      }
-      return XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-    }();
+    const auto mv = predict(i, tp, milliseconds(8.0f));
 
     // Project target points.
     const auto top = game::project(vm_, target.top + mv, sw, sh);
@@ -232,7 +286,7 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
 #endif
 
     // Check if primary fire conditions are met.
-    if (fire || tp0 < primary_ || state.up(button::right) || state.up(button::left)) {
+    if (fire || tp < primary_ || state.up(button::right) || state.up(button::left)) {
       continue;
     }
 
@@ -241,12 +295,12 @@ void view::widowmaker(clock::time_point tp0, const epos::input::state& state, co
     const auto o1 = sc.y - mid->y;
     const auto r2 = std::pow(r0, 2.0f);
     const auto r3 = std::pow(r1, 2.0f);
-    for (auto multiplier = 1.0f; multiplier < 6.1f; multiplier += 1.0f) {
+    for (auto multiplier = 1.0f; multiplier < 3.1f; multiplier += 1.0f) {
       const auto ex = std::pow(o0 + mouse.x * multiplier * 2.0f, 2.0f) / r2;
       const auto ey = std::pow(o0 + mouse.y * multiplier, 2.0f) / r3;
       if (ex + ey < 1.0f) {
         input_.mask(button::up, 16ms);
-        primary_ = tp0 + lockout;
+        primary_ = tp + lockout;
         fire = true;
         break;
       }

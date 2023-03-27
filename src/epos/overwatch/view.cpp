@@ -4,6 +4,10 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 
+#include <boost/accumulators/accumulators.hpp>
+#include <boost/accumulators/statistics/stats.hpp>
+#include <boost/accumulators/statistics/mean.hpp>
+
 namespace epos::overwatch {
 
 view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
@@ -130,7 +134,7 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
 
   // Initialize movement array.
   for (std::size_t i = 0; i < game::entities; i++) {
-    movement_[i] = boost::circular_buffer<snapshot>(16);
+    movement_[i] = boost::circular_buffer<snapshot>(64);
   }
 
   // Create device.
@@ -197,29 +201,40 @@ overlay::command view::render() noexcept
     team_ = team_ == game::team::one ? game::team::two : game::team::one;
   }
 
-  if (state.pressed(key::f12)) {
-    switch (hero_) {
-    case game::hero::reaper:
-      hero_ = game::hero::widowmaker;
-      break;
-    case game::hero::widowmaker:
-      hero_ = game::hero::none;
-      break;
-    default:
-      hero_ = game::hero::reaper;
-      break;
-    }
+  if (state.pressed(key::f10)) {
+    hero_ = game::hero::reaper;
+  } else if (state.pressed(key::f11)) {
+    hero_ = game::hero::symmetra;
+  } else if (state.pressed(key::f12)) {
+    hero_ = game::hero::widowmaker;
   }
 
   // Update memory.
   if (!scene_draw_->vm || !device_.update()) {
+    if (hero_ != game::hero::none) {
+      info_.clear();
+      info_.append(L"\n\n");
+      info_.append(game::hero_name(hero_).data());
+      draw(dc_, info_, region::text::duration, formats_.status, brushes_.info);
+    }
     return command::none;
+  }
+
+  // Update movement.
+  if (tp0 > update_movement_) {
+    for (std::size_t i = 0; i < scene_draw_->entities; i++) {
+      movement_[i].push_front({ XMLoadFloat3(&entities_[i].p0), tp0 });
+    }
+    update_movement_ = tp0 + 2ms;
   }
 
   // Handle hero.
   switch (hero_) {
   case game::hero::reaper:
     reaper(tp0, state, mouse);
+    break;
+  case game::hero::symmetra:
+    symmetra(tp0, state, mouse);
     break;
   case game::hero::widowmaker:
     widowmaker(tp0, state, mouse);

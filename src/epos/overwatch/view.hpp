@@ -67,6 +67,11 @@ public:
     };
   };
 
+  struct snapshot {
+    XMVECTOR p0{};
+    clock::time_point tp;
+  };
+
   view(HINSTANCE instance, HWND hwnd, long cx, long cy);
 
   view(view&& other) = delete;
@@ -81,7 +86,10 @@ public:
 
 private:
   void reaper(clock::time_point tp, const epos::input::state& state, const XMFLOAT2& mouse) noexcept;
+  void symmetra(clock::time_point tp, const epos::input::state& state, const XMFLOAT2& mouse) noexcept;
   void widowmaker(clock::time_point tp, const epos::input::state& state, const XMFLOAT2& mouse) noexcept;
+
+  XMVECTOR predict(std::size_t entity, clock::time_point tp, milliseconds duration) noexcept;
 
   boost::asio::awaitable<void> update(std::chrono::steady_clock::duration wait) noexcept;
   boost::asio::awaitable<void> run() noexcept;
@@ -198,16 +206,11 @@ private:
   std::array<game::entity, game::entities> entities_;
   XMMATRIX vm_{};
 
-  struct snapshot {
-    XMVECTOR target{};
-    clock::time_point time_point;
-  };
-
   std::array<boost::circular_buffer<snapshot>, game::entities> movement_;
   clock::time_point update_movement_{ clock::now() };
 
   game::team team_{ game::team::one };
-  game::hero hero_{ game::hero::reaper };
+  game::hero hero_{ game::hero::symmetra };
   clock::time_point primary_{ clock::now() };
   clock::time_point melee_{ clock::now() };
 
