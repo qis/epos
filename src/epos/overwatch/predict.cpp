@@ -38,7 +38,7 @@ XMVECTOR view::predict(std::size_t entity, clock::time_point tp, milliseconds du
   acc(e[0].p0 - e[1].p0);
 
   for (std::size_t i = 2; i < size; i++) {
-    // Get movement vector.
+    // Add movement vector.
     acc(p0 - e[i].p0);
 
     // Update last known position.
@@ -55,10 +55,10 @@ XMVECTOR view::predict(std::size_t entity, clock::time_point tp, milliseconds du
   const auto mv = boost::accumulators::mean(acc);
 
   // Mean movement vector duration.
-  const auto md = std::chrono::duration_cast<epos::milliseconds>(t1 - t0).count() / mc;
+  const auto md = duration_cast<milliseconds>(t1 - t0) / mc;
 
   // Mean movement vector prediction duration.
-  const auto mp = std::chrono::duration_cast<epos::milliseconds>(tp - t1 + duration).count();
+  const auto mp = duration_cast<milliseconds>(tp - t1 + duration);
 
   // Predict movement.
   return mp / md * mm * mv;
