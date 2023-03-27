@@ -134,7 +134,7 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
 
   // Initialize movement array.
   for (std::size_t i = 0; i < game::entities; i++) {
-    movement_[i] = boost::circular_buffer<snapshot>(64);
+    movement_[i] = boost::circular_buffer<snapshot>(128);
   }
 
   // Create device.
@@ -225,7 +225,7 @@ overlay::command view::render() noexcept
     for (std::size_t i = 0; i < scene_draw_->entities; i++) {
       movement_[i].push_front({ XMLoadFloat3(&entities_[i].p0), tp0 });
     }
-    update_movement_ = tp0 + 2ms;
+    update_movement_ = tp0 + 1ms;
   }
 
   // Handle hero.

@@ -211,8 +211,8 @@ private:
 
   game::team team_{ game::team::one };
   game::hero hero_{ game::hero::symmetra };
-  clock::time_point primary_{ clock::now() };
   clock::time_point melee_{ clock::now() };
+  clock::time_point fire_{ clock::now() };
 
   std::atomic_bool stop_{ false };
   boost::asio::io_context context_{ 1 };
