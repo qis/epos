@@ -21,7 +21,6 @@ XMVECTOR view::predict(std::size_t entity, clock::time_point tp, milliseconds du
   if (size < 2) {
     return {};
   }
-  //return epos_overwatch_view_predict(e, size, tp, duration);
 
   // Last position time point.
   const auto t1 = e[0].tp;
