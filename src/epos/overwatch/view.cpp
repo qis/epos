@@ -5,8 +5,8 @@
 #include <boost/asio/detached.hpp>
 
 #include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
+#include <boost/accumulators/statistics/stats.hpp>
 
 namespace epos::overwatch {
 
@@ -132,11 +132,6 @@ view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
   create_format(L"Roboto Mono", 12.0f, FALSE, &formats_.report);
   formats_.status->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
 
-  // Initialize movement array.
-  for (std::size_t i = 0; i < game::entities; i++) {
-    movement_[i] = boost::circular_buffer<snapshot>(128);
-  }
-
   // Create device.
   if (const auto rv = device_.create(); !rv) {
     throw std::system_error(rv.error(), "create");
@@ -163,13 +158,11 @@ overlay::command view::render() noexcept
   // Measure draw duration.
   const auto tp0 = clock::now();
 
-  // Handle scene updated notification.
-  auto scene_done_updated_expected = true;
-  if (scene_done_updated_.compare_exchange_weak(scene_done_updated_expected, false)) {
-    scene_draw_ = scene_done_.exchange(scene_draw_);
-    for (std::size_t i = 0; i < scene_draw_->entities; i++) {
-      movement_[i].clear();
-    }
+  // Handle scan updated notification.
+  auto scan_done_updated_expected = true;
+  if (scan_done_updated_.compare_exchange_weak(scan_done_updated_expected, false)) {
+    scan_draw_ = scan_done_.exchange(scan_draw_);
+    record_.clear();
   }
 
   // Clear scene.
@@ -177,40 +170,17 @@ overlay::command view::render() noexcept
   dc_->SetTransform(D2D1::IdentityMatrix());
 
   // Draw report.
-  if (scene_draw_->report) {
+  if (scan_draw_->report) {
     dc_->FillRectangle(region::report, brushes_.report.Get());
     constexpr D2D1_POINT_2F origin{ region::text::report.left, region::text::report.top };
-    draw(dc_, origin, scene_draw_->report, brushes_.gray);
+    draw(dc_, origin, scan_draw_->report, brushes_.gray);
   }
 
   // Clear labels.
-  scene_labels_.clear();
-
-  // Get input state.
-  const auto state = input_.get_sync();
-  mouse_.push_back({ state.mx / 4.0f, state.my / 4.0f });
-  XMFLOAT2 mouse{};
-  for (const auto& e : mouse_) {
-    mouse.x += e.x;
-    mouse.y += e.y;
-  }
-  mouse.x /= mouse_.size();
-  mouse.y /= mouse_.size();
-
-  if (state.pressed(key::pause)) {
-    team_ = team_ == game::team::one ? game::team::two : game::team::one;
-  }
-
-  if (state.pressed(key::f10)) {
-    hero_ = game::hero::reaper;
-  } else if (state.pressed(key::f11)) {
-    hero_ = game::hero::symmetra;
-  } else if (state.pressed(key::f12)) {
-    hero_ = game::hero::widowmaker;
-  }
+  labels_.clear();
 
   // Update memory.
-  if (!scene_draw_->vm || !device_.update()) {
+  if (!scan_draw_->vm || !device_.update()) {
     if (hero_ != game::hero::none) {
       info_.clear();
       info_.append(L"\n\n");
@@ -220,24 +190,36 @@ overlay::command view::render() noexcept
     return command::none;
   }
 
-  // Update movement.
-  if (tp0 > update_movement_) {
-    for (std::size_t i = 0; i < scene_draw_->entities; i++) {
-      movement_[i].push_front({ XMLoadFloat3(&entities_[i].p0), tp0 });
-    }
-    update_movement_ = tp0 + 1ms;
+  // Get input state.
+  const auto& state = input_.update();
+
+  if (state.pressed(key::pause)) {
+    team_ = team_ == game::team::one ? game::team::two : game::team::one;
   }
+
+  if (state.pressed(key::f9)) {
+    input_.move(100, 0);
+  }
+
+  if (state.pressed(key::f10)) {
+    hero_ = game::hero::none;
+  } else if (state.pressed(key::f11)) {
+    hero_ = game::hero::reaper;
+  } else if (state.pressed(key::f12)) {
+    hero_ = game::hero::widowmaker;
+  }
+
+  // Get scene.
+  const auto entities = std::span(entities_.data(), scan_draw_->entities);
+  const auto& scene = record_.update(tp0, state.mx, state.my, vm_, entities);
 
   // Handle hero.
   switch (hero_) {
   case game::hero::reaper:
-    reaper(tp0, state, mouse);
-    break;
-  case game::hero::symmetra:
-    symmetra(tp0, state, mouse);
+    reaper(tp0, state, scene);
     break;
   case game::hero::widowmaker:
-    widowmaker(tp0, state, mouse);
+    widowmaker(tp0, state, scene);
     break;
   }
 
@@ -254,17 +236,17 @@ overlay::command view::render() noexcept
   }
 
   // Draw labels.
-  if (!scene_labels_.empty()) {
+  if (!labels_.empty()) {
     outline_dc_->BeginDraw();
     outline_dc_->Clear();
-    for (const auto& label : scene_labels_) {
+    for (const auto& label : labels_) {
       if (label.layout && brushes_.black) {
         draw(outline_dc_, { label.x, label.y }, label.layout, brushes_.black);
       }
     }
     outline_dc_->EndDraw();
     dc_->DrawImage(outline_dilate_.Get(), D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR);
-    for (const auto& label : scene_labels_) {
+    for (const auto& label : labels_) {
       if (label.layout && brushes_.black) {
         draw(dc_, { label.x, label.y }, label.layout, label.brush);
       }
@@ -302,22 +284,22 @@ boost::asio::awaitable<void> view::update(std::chrono::steady_clock::duration wa
   if (report_) {
     constexpr auto cx = region::text::report.right - region::text::report.left;
     constexpr auto cy = region::text::report.bottom - region::text::report.top;
-    report_.create(factory_, formats_.report, cx, cy, &scene_work_->report);
+    report_.create(factory_, formats_.report, cx, cy, &scan_work_->report);
   }
 
-  // Swap work and done scenes.
-  scene_work_ = scene_done_.exchange(scene_work_);
+  // Swap work and done scans.
+  scan_work_ = scan_done_.exchange(scan_work_);
 
-  // Indicate that the done scene was updated.
-  scene_done_updated_.store(true, std::memory_order_release);
+  // Indicate that the done scan was updated.
+  scan_done_updated_.store(true, std::memory_order_release);
 
   // Signal overlay to call render() on another thread.
   overlay::update();
 
-  // Reset scene.
-  scene_work_->report.Reset();
-  scene_work_->entities = 0;
-  scene_work_->vm = false;
+  // Reset scan.
+  scan_work_->report.Reset();
+  scan_work_->entities = 0;
+  scan_work_->vm = false;
   report_.reset();
 
   // Limit frame rate.
@@ -334,8 +316,8 @@ boost::asio::awaitable<void> view::run() noexcept
     if (first) {
       first = false;
     } else {
-      scene_work_->entities = 0;
-      scene_work_->vm = false;
+      scan_work_->entities = 0;
+      scan_work_->vm = false;
       co_await update(5s);
       device_.close();
     }
@@ -442,13 +424,8 @@ boost::asio::awaitable<void> view::run() noexcept
             break;
           }
           const auto signature = region.base_address + i + pos;
-#if EPOS_OVERWATCH_UNKNOWN
-          constexpr auto copy_size = offsetof(game::entity, signature);
-#else
-          constexpr auto copy_size = sizeof(game::entity);
-#endif
-          if (signature >= region.base_address + copy_size) {
-            offsets.push_back(signature - copy_size);
+          if (signature >= region.base_address + game::entity_signature_offset) {
+            offsets.push_back(signature - game::entity_signature_offset);
           }
           i += pos;
         }
@@ -476,8 +453,8 @@ boost::asio::awaitable<void> view::run() noexcept
       // Check if watched memory changed.
       auto changed = offsets.size() + 1 != watch.size();
       if (!changed && std::equal(offsets.begin(), offsets.end(), watch.begin(), compare)) {
-        scene_work_->entities = entities;
-        scene_work_->vm = true;
+        scan_work_->entities = entities;
+        scan_work_->vm = true;
         co_await update(1s);
         continue;
       }
@@ -493,8 +470,8 @@ boost::asio::awaitable<void> view::run() noexcept
         report_.write(brushes_.white, rv.error().message());
         break;
       }
-      scene_work_->entities = entities;
-      scene_work_->vm = true;
+      scan_work_->entities = entities;
+      scan_work_->vm = true;
       co_await update(1s);
     }
   }

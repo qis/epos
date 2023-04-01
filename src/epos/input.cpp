@@ -52,21 +52,11 @@ input::input(HINSTANCE instance, HWND hwnd)
       endpoint_ = *endpoints.begin();
     }
   }
-
-  // Start context thread.
-  boost::asio::co_spawn(context_, run(), boost::asio::detached);
-  thread_ = std::jthread([this]() noexcept {
-    boost::system::error_code ec;
-    context_.run(ec);
-  });
 }
 
 input::~input()
 {
   context_.stop();
-  if (thread_.joinable()) {
-    thread_.join();
-  }
   if (mouse_) {
     mouse_->Unacquire();
   }
@@ -75,58 +65,93 @@ input::~input()
   }
 }
 
-boost::asio::awaitable<input::state> input::get() noexcept
+const input::state& input::update() noexcept
 {
-  return boost::asio::co_spawn(context_, reset(), boost::asio::use_awaitable);
-}
-
-input::state input::get_sync() noexcept
-{
-  return boost::asio::co_spawn(context_, reset(), boost::asio::use_future).get();
-}
-
-void input::mask(
-  button button,
-  std::chrono::milliseconds duration,
-  std::chrono::steady_clock::duration delay) noexcept
-{
-  if (delay > std::chrono::steady_clock::duration(0)) {
-    hid_timer_.expires_from_now(delay);
-    hid_timer_.async_wait([this, button, duration](boost::system::error_code ec) noexcept {
-      mask(button, duration);
-    });
-    return;
+  // Get keyboard state.
+  if (FAILED(keybd_->GetDeviceState(keybd_state_size, keybd_state_.data()))) {
+    keybd_->Acquire();
+    return state_;
   }
 
+  // Update keys.
+  for (std::size_t i = 0; i < state_.keys.size(); i++) {
+    state_.keys[i] &= 0x01;  // unset flags
+    if (keybd_state_[static_cast<std::uint8_t>(enum_entry<key>(i))] & 0x80) {
+      if (!(state_.keys[i] & 0x01)) {
+        state_.keys[i] |= 0x03;  // set down state and pressed flag
+      }
+    } else {
+      if (state_.keys[i] & 0x01) {
+        state_.keys[i] |= 0x04;  // set released flag
+      }
+      state_.keys[i] &= ~0x01;  // set up state
+    }
+  }
+
+  // Get mouse state.
+  if (FAILED(mouse_->GetDeviceState(mouse_state_size, &mouse_state_))) {
+    mouse_->Acquire();
+    return state_;
+  }
+
+  // Update time point.
+  const auto now = clock::now();
+  state_.duration = now - update_;
+  update_ = now;
+
+  // Update buttons.
+  for (std::size_t i = 0; i < state_.buttons.size(); i++) {
+    state_.buttons[i] &= 0x01;  // unset flags
+    if (mouse_state_.rgbButtons[i]) {
+      if (!(state_.buttons[i] & 0x01)) {
+        state_.buttons[i] |= 0x03;  // set down state and pressed flag
+      }
+    } else {
+      if (state_.buttons[i] & 0x01) {
+        state_.buttons[i] |= 0x04;  // set released flag
+      }
+      state_.buttons[i] &= ~0x01;  // set up state
+    }
+  }
+
+  // Update mouse movement.
+  state_.mx = mouse_state_.lX;
+  state_.my = mouse_state_.lY;
+
+  return state_;
+}
+
+void input::mask(button button, std::chrono::milliseconds duration) noexcept
+{
   switch (button) {
   case button::left:
-    hid_data_[0] = 0x01 << 0;
+    data_[0] = 0x01 << 0;
     break;
   case button::right:
-    hid_data_[0] = 0x01 << 1;
+    data_[0] = 0x01 << 1;
     break;
   case button::middle:
-    hid_data_[0] = 0x01 << 2;
+    data_[0] = 0x01 << 2;
     break;
   case button::down:
-    hid_data_[0] = 0x01 << 3;
+    data_[0] = 0x01 << 3;
     break;
   case button::up:
-    hid_data_[0] = 0x01 << 4;
+    data_[0] = 0x01 << 4;
     break;
   default:
-    hid_data_[0] = 0;
+    data_[0] = 0;
     break;
   }
 
   duration = std::clamp(duration, 0ms, std::chrono::milliseconds(maximum_mask_duration));
   const auto ms = static_cast<std::uint16_t>(duration.count());
-  hid_data_[1] = static_cast<std::uint8_t>((ms >> 8) & 0xFF);
-  hid_data_[2] = static_cast<std::uint8_t>((ms >> 0) & 0xFF);
+  data_[1] = static_cast<std::uint8_t>((ms >> 8) & 0xFF);
+  data_[2] = static_cast<std::uint8_t>((ms >> 0) & 0xFF);
 
   while (true) {
     boost::system::error_code ec;
-    socket_.send_to(boost::asio::buffer(hid_data_.data(), 3), endpoint_, {}, ec);
+    socket_.send_to(boost::asio::buffer(data_.data(), 3), endpoint_, {}, ec);
     if (ec != boost::system::errc::resource_unavailable_try_again) {
       break;
     }
@@ -140,120 +165,19 @@ void input::move(std::int16_t x, std::int16_t y) noexcept
     return;
   }
 
-  hid_data_[0] = static_cast<std::uint8_t>(static_cast<uint16_t>(x) & 0xFF);
-  hid_data_[1] = static_cast<std::uint8_t>(static_cast<uint16_t>(x) >> 8 & 0xFF);
-  hid_data_[2] = static_cast<std::uint8_t>(static_cast<uint16_t>(y) & 0xFF);
-  hid_data_[3] = static_cast<std::uint8_t>(static_cast<uint16_t>(y) >> 8 & 0xFF);
+  data_[0] = static_cast<std::uint8_t>(static_cast<uint16_t>(x) & 0xFF);
+  data_[1] = static_cast<std::uint8_t>(static_cast<uint16_t>(x) >> 8 & 0xFF);
+  data_[2] = static_cast<std::uint8_t>(static_cast<uint16_t>(y) & 0xFF);
+  data_[3] = static_cast<std::uint8_t>(static_cast<uint16_t>(y) >> 8 & 0xFF);
 
   while (true) {
     boost::system::error_code ec;
-    socket_.send_to(boost::asio::buffer(hid_data_.data(), 4), endpoint_, {}, ec);
+    socket_.send_to(boost::asio::buffer(data_.data(), 4), endpoint_, {}, ec);
     if (ec != boost::system::errc::resource_unavailable_try_again) {
       break;
     }
     std::this_thread::sleep_for(1us);
   }
-}
-
-void input::update() noexcept
-{
-  // Get keyboard state.
-  if (FAILED(keybd_->GetDeviceState(keybd_state_size, keybd_state_.data()))) {
-    keybd_->Acquire();
-    return;
-  }
-
-  // Update keys.
-  for (std::size_t i = 0; i < state_.keys.size(); i++) {
-    if (keybd_state_[static_cast<std::uint8_t>(enum_entry<key>(i))] & 0x80) {
-      if (state_.keys[i] & 0x01) {
-        state_.keys[i] |= 0x01;  // down
-      } else {
-        state_.keys[i] |= 0x03;  // down and pressed
-      }
-    } else {
-      if (state_.keys[i] & 0x01) {
-        state_.keys[i] |= 0x04;  // released
-      }
-      state_.keys[i] &= ~0x01;  // up
-    }
-  }
-
-  // Get mouse state.
-  if (FAILED(mouse_->GetDeviceState(mouse_state_size, &mouse_state_))) {
-    mouse_->Acquire();
-    return;
-  }
-
-  // Update time point.
-  state_.update = clock::now();
-
-  // Update buttons.
-  for (std::size_t i = 0; i < state_.buttons.size(); i++) {
-    if (mouse_state_.rgbButtons[i]) {
-      if (state_.buttons[i] & 0x01) {
-        state_.buttons[i] |= 0x01;  // down
-      } else {
-        state_.buttons[i] |= 0x03;  // down and pressed
-      }
-    } else {
-      if (state_.buttons[i] & 0x01) {
-        state_.buttons[i] |= 0x04;  // released
-      }
-      state_.buttons[i] &= ~0x01;  // up
-    }
-  }
-
-  // Update mouse movement.
-  state_.mx += mouse_state_.lX;
-  state_.my += mouse_state_.lY;
-}
-
-boost::asio::awaitable<input::state> input::reset() noexcept
-{
-  // Update state.
-  update();
-
-  // Copy state.
-  auto state = state_;
-
-  // Set duration.
-  state.duration = state.update - state_update_;
-
-  // Reset keys.
-  for (std::size_t i = 0; i < state_.keys.size(); i++) {
-    state_.keys[i] &= 0x01;
-  }
-
-  // Reset buttons.
-  for (std::size_t i = 0; i < state_.buttons.size(); i++) {
-    state_.buttons[i] &= 0x01;
-  }
-
-  // Reset mouse movement.
-  state_.mx = 0;
-  state_.my = 0;
-
-  // Reset time point.
-  state_update_ = state.update;
-
-  // Return state copy.
-  co_return state;
-}
-
-boost::asio::awaitable<void> input::run() noexcept
-{
-  const auto executor = co_await boost::asio::this_coro::executor;
-  SetThreadDescription(GetCurrentThread(), L"input");
-  timer update_timer{ executor };
-  while (true) {
-    update();
-    update_timer.expires_from_now(1ms);
-    if (const auto [ec] = co_await update_timer.async_wait(); ec) {
-      co_return;
-    }
-  }
-  co_return;
 }
 
 }  // namespace epos

@@ -69,9 +69,6 @@ public:
   static constexpr std::chrono::seconds maximum_mask_duration{ 10 };
 
   struct state {
-    /// Time point of the current @ref input::get call.
-    clock::time_point update{};
-
     /// Duration since the last @ref input::get call.
     clock::duration duration{};
 
@@ -133,38 +130,25 @@ public:
 
   ~input();
 
-  boost::asio::awaitable<state> get() noexcept;
-  state get_sync() noexcept;
+  const state& update() noexcept;
 
-  void mask(
-    button button,
-    std::chrono::milliseconds duration = {},
-    std::chrono::steady_clock::duration delay = {}) noexcept;
-
+  void mask(button button, std::chrono::milliseconds duration = {}) noexcept;
   void move(std::int16_t x, std::int16_t y) noexcept;
 
 private:
-  void update() noexcept;
-  boost::asio::awaitable<state> reset() noexcept;
-  boost::asio::awaitable<void> run() noexcept;
-
   ComPtr<IDirectInput8> input_;
   ComPtr<IDirectInputDevice8> keybd_;
   ComPtr<IDirectInputDevice8> mouse_;
 
   state state_;
-  clock::time_point state_update_{ clock::now() };
-  std::vector<std::uint8_t> keybd_state_;
   DIMOUSESTATE2 mouse_state_{};
+  std::vector<std::uint8_t> keybd_state_;
+  clock::time_point update_{ clock::now() };
 
   boost::asio::io_context context_;
   boost::asio::ip::udp::socket socket_{ context_ };
   boost::asio::ip::udp::endpoint endpoint_;
-
-  timer hid_timer_{ context_ };
-  std::array<std::uint8_t, 4> hid_data_{};
-
-  std::jthread thread_;
+  std::array<std::uint8_t, 4> data_{};
 };
 
 }  // namespace epos

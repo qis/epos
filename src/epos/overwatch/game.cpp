@@ -20,8 +20,8 @@ boost::static_wstring<16> hero_name(game::hero hero)
 
 game::target entity::target() const noexcept
 {
-  const auto w = width();
-  const auto h = height();
+  const auto w = p1.x - p0.x;
+  const auto h = p1.y - p0.y;
 
   bool tank = false;
   auto ratio = 0.30f;
@@ -105,7 +105,7 @@ game::target entity::target() const noexcept
     ratio = 0.50f;
     tank = true;
   }
-  return { XMLoadFloat3(&top), XMLoadFloat3(&mid), w / h * ratio, tank };
+  return { XMLoadFloat3(&top), XMLoadFloat3(&mid), {}, w / h * ratio, team, live == 0x14, tank };
 }
 
 const qis::signature entity_signature = []() noexcept {
@@ -115,6 +115,26 @@ const qis::signature entity_signature = []() noexcept {
   assert(signature.size() == static_cast<std::size_t>(entity_signature_size));
   return signature;
 }();
+
+XMVECTOR camera(const XMMATRIX& vm) noexcept
+{
+  const auto vi = XMMatrixInverse(nullptr, vm);
+  const auto vw = XMVectorGetW(vi.r[2]);
+  if (vw < 0.0001f) {
+    return XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+  }
+  const auto x = XMVectorGetX(vi.r[2]) / vw;
+  const auto y = XMVectorGetY(vi.r[2]) / vw;
+  const auto z = XMVectorGetZ(vi.r[2]) / vw;
+  return XMVectorSet(x, y, z, 0.0f);
+}
+
+XMMATRIX translate(XMMATRIX vm, XMVECTOR v) noexcept
+{
+  vm = XMMatrixInverse(nullptr, vm);
+  vm.r[2] += v * XMVectorGetW(vm.r[2]);
+  return XMMatrixInverse(nullptr, vm);
+}
 
 std::optional<XMFLOAT2> project(const XMMATRIX& vm, XMVECTOR v, int sw, int sh) noexcept
 {
@@ -145,17 +165,155 @@ std::optional<XMFLOAT2> project(const XMMATRIX& vm, XMVECTOR v, int sw, int sh) 
   return XMFLOAT2{ sx, sy };
 }
 
-XMVECTOR camera(const XMMATRIX& vm) noexcept
+// Checks if the view matrix changed.
+__forceinline bool changed(const XMMATRIX& a, const XMMATRIX& b) noexcept
 {
-  const auto v = XMMatrixInverse(nullptr, vm);
-  const auto w = XMVectorGetW(v.r[2]);
-  if (w < 0.0001f) {
-    return XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+  return std::memcmp(&a, &b, sizeof(a)) != 0;
+}
+
+// Checks if the position vector changed.
+__forceinline bool changed(const XMVECTOR& a, const XMVECTOR& b) noexcept
+{
+  return std::memcmp(&a, &b, sizeof(a)) != 0;
+}
+
+const scene& record::update(
+  clock::time_point tp,
+  std::int32_t mx,
+  std::int32_t my,
+  const XMMATRIX& vm,
+  std::span<const entity> entities) noexcept
+{
+  // Reset current scene.
+  scene_.tp = tp;
+  scene_.mx = mx;
+  scene_.my = my;
+  scene_.vm = vm;
+  scene_.camera = camera(vm);
+  scene_.movement = {};
+  scene_.targets.clear();
+  for (const auto& e : entities) {
+    scene_.targets.push_back(e.target());
   }
-  const auto x = XMVectorGetX(v.r[2]);
-  const auto y = XMVectorGetY(v.r[2]);
-  const auto z = XMVectorGetZ(v.r[2]);
-  return XMVectorSet(x / w, y / w, z / w, 0.0f);
+
+  // First scene after scene_ with a different view matrix.
+  const scene* s0 = nullptr;
+
+  // First scene after s0 with a different view matrix.
+  const scene* s1 = nullptr;
+
+  // First scene for each target after scene_ with a different mid position.
+  std::array<const scene*, game::entities> t0{};
+
+  // First scene for each target after t0 with a different mid position.
+  std::array<const scene*, game::entities> t1{};
+
+  // How long to look into the past for movement changes.
+  const auto limit = tp - 64ms;
+
+  // How long to look into the past for movement accumulation.
+  const auto total = tp - 16ms;
+
+  // Accumulated camera movement.
+  XMVECTOR total_movement{};
+
+  // Accumulated target movement.
+  std::array<XMVECTOR, game::entities> total_targets_movement{};
+
+  // Accumulated movement count.
+  std::size_t total_count = 1;
+
+  // Set s0, s1, t0 and t1.
+  for (const auto& e : scenes_) {
+    // Stop inspecting history if the time limit was reached.
+    if (e.tp < limit) {
+      break;
+    }
+
+    // Stop accumulating movement if the time limit was reached.
+    const auto accumulate_movement = e.tp > total;
+
+    // Check if the view matrix changed.
+    if (!s0) {
+      if (changed(vm, e.vm)) {
+        s0 = &e;
+      } else {
+        mx += e.mx;
+        my += e.my;
+      }
+    } else if (!s1) {
+      if (changed(s0->vm, e.vm)) {
+        s1 = &e;
+      }
+    } else {
+      if (changed(s1->vm, e.vm)) {
+        s1 = &e;
+      }
+    }
+
+    if (accumulate_movement) {
+      total_movement += e.movement;
+      total_count++;
+    }
+
+    // Check if the target positions changed.
+    for (std::size_t i = 0; i < entities.size(); i++) {
+      const auto& targets = e.targets[i];
+      if (!t0[i]) {
+        if (changed(scene_.targets[i].mid, targets.mid)) {
+          t0[i] = &e;
+        }
+      } else if (!t1[i]) {
+        if (changed(t0[i]->targets[i].mid, targets.mid)) {
+          t1[i] = &e;
+        }
+      } else {
+        if (changed(t1[i]->targets[i].mid, targets.mid)) {
+          t1[i] = &e;
+        }
+      }
+      if (accumulate_movement) {
+        total_targets_movement[i] += targets.movement;
+      }
+    }
+  }
+
+  // Set camera movement.
+  if (s0 && s1) {
+    if (const auto duration = s0->tp - s1->tp; duration > 1ms) {
+      scene_.movement = (s0->camera - s1->camera) / duration_cast<seconds>(duration).count();
+    }
+  }
+
+  // Set target movement.
+  for (std::size_t i = 0; i < entities.size(); i++) {
+    if (t0[i] && t1[i]) {
+      if (const auto duration = t0[i]->tp - t1[i]->tp; duration > 1ms) {
+        const auto movement = t0[i]->targets[i].mid - t1[i]->targets[i].mid;
+        scene_.targets[i].movement = movement / duration_cast<seconds>(duration).count();
+      }
+    }
+  }
+
+  // Record current scene with original mouse and movement values.
+  scenes_.push_front(scene_);
+
+  // Update scene mx and my values to mouse movement since
+  // last view matrix change instead of last scene update.
+  scene_.mx = mx;
+  scene_.my = my;
+
+  // Smooth out camera movement.
+  scene_.movement = (scene_.movement + total_movement) / total_count;
+
+  // Smooth out target movement.
+  for (std::size_t i = 0; i < entities.size(); i++) {
+    auto& movement = scene_.targets[i].movement;
+    movement = (movement + total_targets_movement[i]) / total_count;
+  }
+
+  // Return constant reference to current scene with updated mx and my values.
+  return scene_;
 }
 
 }  // namespace epos::overwatch::game

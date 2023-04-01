@@ -1,10 +1,15 @@
 #pragma once
+#include <epos/clock.hpp>
+#include <boost/circular_buffer.hpp>
+#include <boost/container/static_vector.hpp>
 #include <boost/describe/enum.hpp>
 #include <boost/static_string.hpp>
 #include <qis/signature.hpp>
 #include <windows.h>
 #include <optional>
+#include <span>
 #include <cstddef>
+#include <cstdint>
 
 #include <DirectXMath.h>
 
@@ -21,14 +26,10 @@ constexpr std::intptr_t entities = 255;
 
 using namespace DirectX;
 
-struct target {
-  XMVECTOR top{};
-  XMVECTOR mid{};
-  float ratio{ 1.0f };
-  bool tank{ false };
+enum class team : BYTE {
+  one = 0x08,
+  two = 0x10,
 };
-
-#pragma pack(push, 1)
 
 BOOST_DEFINE_FIXED_ENUM_CLASS(
   hero,
@@ -75,10 +76,30 @@ BOOST_DEFINE_FIXED_ENUM_CLASS(
 
 boost::static_wstring<16> hero_name(game::hero hero);
 
-enum class team : BYTE {
-  one = 0x08,
-  two = 0x10,
+struct target {
+  /// Collision box top point.
+  XMVECTOR top;
+
+  /// Collision box mid point.
+  XMVECTOR mid;
+
+  /// Movement in units per second.
+  XMVECTOR movement;
+
+  /// Collusion box width to height ratio.
+  float ratio;
+
+  /// Entity team.
+  team team;
+
+  /// Entity can be targeted.
+  bool live;
+
+  /// Entity is a likely tank.
+  bool tank;
 };
+
+#pragma pack(push, 1)
 
 struct entity {
   XMFLOAT3 p0{};
@@ -92,42 +113,65 @@ struct entity {
   std::array<std::byte, entity_signature_size> signature{};
   std::array<std::uint32_t, 8> unknown3{};
 #endif
-
-  constexpr operator bool() const noexcept
-  {
-    return live == 0x14;
-  }
-
-  constexpr float width() const noexcept
-  {
-    return p1.x - p0.x;
-  }
-
-  constexpr float height() const noexcept
-  {
-    return p1.y - p0.y;
-  }
-
   game::target target() const noexcept;
 };
 
-#if EPOS_OVERWATCH_UNKNOWN
-static_assert(offsetof(entity, signature) - offsetof(entity, p0) == 0x9C);
-#else
-static_assert(sizeof(entity) == 0x9C);
-#endif
-
 #pragma pack(pop)
+
+#if EPOS_OVERWATCH_UNKNOWN
+constexpr auto entity_signature_offset = offsetof(entity, signature);
+static_assert(entity_signature_offset - offsetof(entity, p0) == 0x9C);
+#else
+constexpr auto entity_signature_offset = sizeof(entity);
+static_assert(entity_signature_offset == 0x9C);
+#endif
 
 extern const qis::signature entity_signature;
 
-std::optional<XMFLOAT2> project(const XMMATRIX& vm, XMVECTOR v, int sw, int sh) noexcept;
 XMVECTOR camera(const XMMATRIX& vm) noexcept;
+XMMATRIX translate(XMMATRIX vm, XMVECTOR v) noexcept;
+std::optional<XMFLOAT2> project(const XMMATRIX& vm, XMVECTOR v, int sw, int sh) noexcept;
 
-// Arrow drop per meter.
-inline const XMVECTOR arrow_drop{ XMVectorSet(0.0f, 0.019f, 0.0f, 0.0f) };
+struct scene {
+  /// Scene time point.
+  clock::time_point tp;
 
-// How many seconds it takes an arrow to travel a meter.
-constexpr float arrow_speed{ 0.01f };
+  /// Horizontal mouse movement since last @ref vm change.
+  std::int32_t mx;
+
+  /// Vertical mouse movement since last @ref vm change.
+  std::int32_t my;
+
+  /// View matrix.
+  XMMATRIX vm;
+
+  /// Camera position.
+  XMVECTOR camera;
+
+  /// Camera movement in units per second.
+  XMVECTOR movement;
+
+  /// Scene targets.
+  boost::container::static_vector<target, entities> targets;
+};
+
+class record {
+public:
+  const scene& update(
+    clock::time_point tp,
+    std::int32_t mx,
+    std::int32_t my,
+    const XMMATRIX& vm,
+    std::span<const entity> entities) noexcept;
+
+  void clear() noexcept
+  {
+    scenes_.clear();
+  }
+
+private:
+  scene scene_;
+  boost::circular_buffer<scene> scenes_{ 1024 };
+};
 
 }  // namespace epos::overwatch::game

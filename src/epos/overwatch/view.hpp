@@ -8,11 +8,11 @@
 #include <epos/timer.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
-#include <boost/circular_buffer.hpp>
 #include <deus.hpp>
 #include <dxgi1_2.h>
 #include <array>
 #include <atomic>
+#include <optional>
 #include <thread>
 
 namespace epos::overwatch {
@@ -67,11 +67,6 @@ public:
     };
   };
 
-  struct snapshot {
-    XMVECTOR p0{};
-    clock::time_point tp;
-  };
-
   view(HINSTANCE instance, HWND hwnd, long cx, long cy);
 
   view(view&& other) = delete;
@@ -85,11 +80,8 @@ public:
   void presented() noexcept override;
 
 private:
-  void reaper(clock::time_point tp, const epos::input::state& state, const XMFLOAT2& mouse) noexcept;
-  void symmetra(clock::time_point tp, const epos::input::state& state, const XMFLOAT2& mouse) noexcept;
-  void widowmaker(clock::time_point tp, const epos::input::state& state, const XMFLOAT2& mouse) noexcept;
-
-  XMVECTOR predict(std::size_t entity, clock::time_point tp, milliseconds duration) noexcept;
+  void reaper(clock::time_point tp, const epos::input::state& state, const game::scene& scene) noexcept;
+  void widowmaker(clock::time_point tp, const epos::input::state& state, const game::scene& scene) noexcept;
 
   boost::asio::awaitable<void> update(std::chrono::steady_clock::duration wait) noexcept;
   boost::asio::awaitable<void> run() noexcept;
@@ -118,7 +110,6 @@ private:
   }
 
   input input_;
-  boost::circular_buffer<XMFLOAT2> mouse_{ 4 };
 
   ComPtr<ID2D1Bitmap> outline_;
   ComPtr<ID2D1BitmapRenderTarget> outline_dc_;
@@ -162,22 +153,23 @@ private:
 
   std::wstring info_;
 
-  struct scene {
+  struct scan {
     ComPtr<IDWriteTextLayout> report;
     std::size_t entities{ 0 };
     bool vm{ false };
   };
 
-  std::array<scene, 3> scenes_{};
-  scene* scene_work_{ &scenes_[0] };
-  scene* scene_draw_{ &scenes_[1] };
-  std::vector<label> scene_labels_{};
-  std::atomic<scene*> scene_done_{ &scenes_[2] };
-  std::atomic_bool scene_done_updated_{ false };
+  std::array<scan, 3> scans_{};
+  scan* scan_work_{ &scans_[0] };
+  scan* scan_draw_{ &scans_[1] };
+  std::atomic<scan*> scan_done_{ &scans_[2] };
+  std::atomic_bool scan_done_updated_{ false };
 
   text status_;
   text report_;
   text string_;
+
+  std::vector<label> labels_{};
 
   label& string_label(
     FLOAT x,
@@ -187,7 +179,7 @@ private:
     const ComPtr<IDWriteTextFormat>& format,
     const ComPtr<ID2D1SolidColorBrush>& brush)
   {
-    auto& label = scene_labels_.emplace_back(x, y, ComPtr<IDWriteTextLayout>{}, brush);
+    auto& label = labels_.emplace_back(x, y, ComPtr<IDWriteTextLayout>{}, brush);
     string_.create(factory_, format, w, h, &label.layout);
     DWRITE_TEXT_METRICS tm{};
     if (SUCCEEDED(label.layout->GetMetrics(&tm))) {
@@ -203,16 +195,17 @@ private:
 
   deus::device device_;
   std::vector<std::byte> memory_{ game::entity_region_size };
-  std::array<game::entity, game::entities> entities_;
+
   XMMATRIX vm_{};
+  std::array<game::entity, game::entities> entities_;
+  game::record record_;
 
-  std::array<boost::circular_buffer<snapshot>, game::entities> movement_;
-  clock::time_point update_movement_{ clock::now() };
+  game::team team_{ game::team::two };
+  game::hero hero_{ game::hero::widowmaker };
 
-  game::team team_{ game::team::one };
-  game::hero hero_{ game::hero::symmetra };
-  clock::time_point melee_{ clock::now() };
-  clock::time_point fire_{ clock::now() };
+  clock::time_point fire_lockout_{ clock::now() };
+  clock::time_point melee_lockout_{ clock::now() };
+  std::optional<clock::time_point> melee_;
 
   std::atomic_bool stop_{ false };
   boost::asio::io_context context_{ 1 };
