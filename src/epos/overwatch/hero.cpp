@@ -149,6 +149,7 @@ void view::reaper(clock::time_point tp, const epos::input::state& state, const g
         if (!target.tank && (m < 1.3f || (m < 2.5f && state.down(button::right)))) {
           melee = true;
         }
+        break;
       }
     }
   }
@@ -196,6 +197,7 @@ void view::widowmaker(clock::time_point tp, const epos::input::state& state, con
 
   // Handle input.
   const auto zoom = state.down(button::right);
+  const auto trigger = state.down(button::left);
   const auto ox = zoom ? offset(scene.mx, sensitivity) : offset(scene.mx, sensitivity, relative);
   const auto oy = zoom ? offset(scene.my, sensitivity) : offset(scene.my, sensitivity, relative);
 
@@ -281,13 +283,14 @@ void view::widowmaker(clock::time_point tp, const epos::input::state& state, con
         if (m < 2.5f) {
           melee = true;
         }
+        break;
       }
     }
   }
 
   // Inject fire and schedule melee attack.
   if (fire || melee) {
-    if ((melee || (fire && zoom)) && tp > fire_lockout_) {
+    if ((melee || (fire && zoom && trigger)) && tp > fire_lockout_) {
       input_.mask(button::up, 16ms);
       fire_lockout_ = tp + fire_lockout;
     }
