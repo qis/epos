@@ -285,7 +285,7 @@ void view::reaper(clock::time_point tp, const epos::input::state& state, const g
     const auto r2 = std::pow(r0, 2.0f);
     const auto r3 = std::pow(r1, 2.0f);
     const auto rs = spread.radiusX;
-    for (auto multiplier = 1.0f; multiplier < 1.5f; multiplier += 0.1f) {
+    for (auto multiplier = 1.0f; multiplier < 7.0f; multiplier += 1.0f) {
       const auto ex = std::pow(o0 + ox * multiplier, 2.0f) / r2;
       const auto ey = std::pow(o1 + oy * multiplier, 2.0f) / r3;
       if (ex + ey < 1.0f || (ey < 1.0f && x0 - r0 > sc.x - rs && x0 + r0 < sc.x + rs)) {
@@ -419,7 +419,7 @@ void view::widowmaker(clock::time_point tp, const epos::input::state& state, con
     const auto o1 = sc.y - mid->y;
     const auto r2 = std::pow(r0, 2.0f);
     const auto r3 = std::pow(r1, 2.0f);
-    for (auto multiplier = 1.0f; multiplier < 1.05f; multiplier += 0.1f) {
+    for (auto multiplier = 1.0f; multiplier < 2.0f; multiplier += 0.3f) {
       const auto ex = std::pow(o0 + ox * multiplier, 2.0f) / r2;
       const auto ey = std::pow(o1 + oy * multiplier, 2.0f) / r3;
       if (ex + ey < 1.0f) {
