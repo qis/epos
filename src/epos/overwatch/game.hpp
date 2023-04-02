@@ -83,7 +83,7 @@ struct target {
   /// Collision box mid point.
   XMVECTOR mid;
 
-  /// Movement in units per second.
+  /// Movement in meters per second.
   XMVECTOR movement;
 
   /// Collusion box width to height ratio.
@@ -148,7 +148,7 @@ struct scene {
   /// Camera position.
   XMVECTOR camera;
 
-  /// Camera movement in units per second.
+  /// Camera movement in meters per second.
   XMVECTOR movement;
 
   /// Scene targets.

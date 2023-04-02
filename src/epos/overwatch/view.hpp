@@ -80,6 +80,7 @@ public:
   void presented() noexcept override;
 
 private:
+  void hanzo(clock::time_point tp, const epos::input::state& state, const game::scene& scene) noexcept;
   void reaper(clock::time_point tp, const epos::input::state& state, const game::scene& scene) noexcept;
   void widowmaker(clock::time_point tp, const epos::input::state& state, const game::scene& scene) noexcept;
 
@@ -201,9 +202,11 @@ private:
   game::record record_;
 
   game::team team_{ game::team::two };
-  game::hero hero_{ game::hero::widowmaker };
+  game::hero hero_{ game::hero::hanzo };
 
+  bool fire_{ false };
   clock::time_point fire_lockout_{ clock::now() };
+  clock::time_point draw_lockout_{ clock::now() };
   clock::time_point melee_lockout_{ clock::now() };
   std::optional<clock::time_point> melee_;
 

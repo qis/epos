@@ -4,10 +4,6 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 
-#include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/mean.hpp>
-#include <boost/accumulators/statistics/stats.hpp>
-
 namespace epos::overwatch {
 
 view::view(HINSTANCE instance, HWND hwnd, long cx, long cy) :
@@ -201,8 +197,10 @@ overlay::command view::render() noexcept
     input_.move(100, 0);
   }
 
-  if (state.pressed(key::f10)) {
+  if (state.pressed(key::f9)) {
     hero_ = game::hero::none;
+  } else if (state.pressed(key::f10)) {
+    hero_ = game::hero::hanzo;
   } else if (state.pressed(key::f11)) {
     hero_ = game::hero::reaper;
   } else if (state.pressed(key::f12)) {
@@ -215,6 +213,9 @@ overlay::command view::render() noexcept
 
   // Handle hero.
   switch (hero_) {
+  case game::hero::hanzo:
+    hanzo(tp0, state, scene);
+    break;
   case game::hero::reaper:
     reaper(tp0, state, scene);
     break;
