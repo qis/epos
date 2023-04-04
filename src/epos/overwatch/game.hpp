@@ -22,7 +22,7 @@ constexpr std::intptr_t vm_offset{ 0x7E0 };
 
 constexpr std::intptr_t entity_region_size{ 0x180000 };
 constexpr std::intptr_t entity_signature_size{ 31 };
-constexpr std::intptr_t entities = 255;
+constexpr std::intptr_t entities = 1024;
 
 using namespace DirectX;
 

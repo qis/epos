@@ -82,6 +82,7 @@ public:
 private:
   void hanzo(clock::time_point tp, const epos::input::state& state, const game::scene& scene) noexcept;
   void reaper(clock::time_point tp, const epos::input::state& state, const game::scene& scene) noexcept;
+  void sojourn(clock::time_point tp, const epos::input::state& state, const game::scene& scene) noexcept;
   void widowmaker(clock::time_point tp, const epos::input::state& state, const game::scene& scene) noexcept;
 
   boost::asio::awaitable<void> update(std::chrono::steady_clock::duration wait) noexcept;
@@ -202,7 +203,7 @@ private:
   game::record record_;
 
   game::team team_{ game::team::two };
-  game::hero hero_{ game::hero::hanzo };
+  game::hero hero_{ game::hero::widowmaker };
 
   bool fire_{ false };
   clock::time_point fire_lockout_{ clock::now() };

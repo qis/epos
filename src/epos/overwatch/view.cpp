@@ -197,12 +197,14 @@ overlay::command view::render() noexcept
     input_.move(100, 0);
   }
 
-  if (state.pressed(key::f9)) {
+  if (state.pressed(key::f8)) {
     hero_ = game::hero::none;
-  } else if (state.pressed(key::f10)) {
+  } else if (state.pressed(key::f9)) {
     hero_ = game::hero::hanzo;
-  } else if (state.pressed(key::f11)) {
+  } else if (state.pressed(key::f10)) {
     hero_ = game::hero::reaper;
+  } else if (state.pressed(key::f11)) {
+    hero_ = game::hero::sojourn;
   } else if (state.pressed(key::f12)) {
     hero_ = game::hero::widowmaker;
   }
@@ -218,6 +220,9 @@ overlay::command view::render() noexcept
     break;
   case game::hero::reaper:
     reaper(tp0, state, scene);
+    break;
+  case game::hero::sojourn:
+    sojourn(tp0, state, scene);
     break;
   case game::hero::widowmaker:
     widowmaker(tp0, state, scene);
